@@ -1,33 +1,33 @@
 export interface Tile {
     id: number;
     canvas: HTMLCanvasElement;
-    data: ImageData;
+    pixelData: ImageData;
 }
 
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
-export interface TileNeighbors {
+export interface AdjacencyRules {
     up: number[];
     down: number[];
     left: number[];
     right: number[];
 }
 
-export class TileGraph {
+export class TileSet {
     tiles: Tile[];
-    neighbors: Map<number, TileNeighbors>;
+    neighbors: Map<number, AdjacencyRules>;
 
     constructor(tiles: Tile[]) {
         this.tiles = tiles;
         this.neighbors = this.computeNeighbors();
     }
 
-    private computeNeighbors(): Map<number, TileNeighbors> {
-        const neighbors = new Map<number, TileNeighbors>();
+    private computeNeighbors(): Map<number, AdjacencyRules> {
+        const neighbors = new Map<number, AdjacencyRules>();
         const tileSize = this.tiles[0].canvas.width;
 
         this.tiles.forEach((tileA, i) => {
-            const compat: TileNeighbors = { up: [], down: [], left: [], right: [] };
+            const compat: AdjacencyRules = { up: [], down: [], left: [], right: [] };
 
             this.tiles.forEach((tileB, j) => {
                 if (i === j) return;
@@ -37,7 +37,7 @@ export class TileGraph {
                     const aIndex = ((y * tileSize) + (tileSize - 1)) * 4;
                     const bIndex = (y * tileSize) * 4;
                     for (let k = 0; k < 4; k++) {
-                        if (tileA.data.data[aIndex + k] !== tileB.data.data[bIndex + k]) {
+                        if (tileA.pixelData.data[aIndex + k] !== tileB.pixelData.data[bIndex + k]) {
                             matchRight = false;
                             break;
                         }
@@ -51,7 +51,7 @@ export class TileGraph {
                     const aIndex = (y * tileSize) * 4;
                     const bIndex = ((y * tileSize) + (tileSize - 1)) * 4;
                     for (let k = 0; k < 4; k++) {
-                        if (tileA.data.data[aIndex + k] !== tileB.data.data[bIndex + k]) {
+                        if (tileA.pixelData.data[aIndex + k] !== tileB.pixelData.data[bIndex + k]) {
                             matchLeft = false;
                             break;
                         }
@@ -64,7 +64,7 @@ export class TileGraph {
                     const aIndex = ((tileSize - 1) * tileSize + x) * 4;
                     const bIndex = x * 4;
                     for (let k = 0; k < 4; k++) {
-                        if (tileA.data.data[aIndex + k] !== tileB.data.data[bIndex + k]) {
+                        if (tileA.pixelData.data[aIndex + k] !== tileB.pixelData.data[bIndex + k]) {
                             matchDown = false;
                             break;
                         }
@@ -78,7 +78,7 @@ export class TileGraph {
                     const aIndex = x * 4;
                     const bIndex = ((tileSize - 1) * tileSize + x) * 4;
                     for (let k = 0; k < 4; k++) {
-                        if (tileA.data.data[aIndex + k] !== tileB.data.data[bIndex + k]) {
+                        if (tileA.pixelData.data[aIndex + k] !== tileB.pixelData.data[bIndex + k]) {
                             matchUp = false;
                             break;
                         }

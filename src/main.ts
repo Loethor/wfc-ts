@@ -1,7 +1,7 @@
 import { SampleList } from './sampleList';
-import { PreviewCanvas } from './previewCanvas';
-import { TileGenerator } from './tileGenerator';
-import { TileGraph, Tile } from './tileGraph';
+import { SamplePreview } from './samplePreview';
+import { TileExtractor } from './tileExtractor';
+import { TileSet, Tile } from './TileSet';
 
 const images = import.meta.glob('/samples/*', {
   eager: true,
@@ -12,8 +12,8 @@ const images = import.meta.glob('/samples/*', {
 const fullPaths = Object.values(images) as string[];
 
 const sampleList = new SampleList('sample-selector', fullPaths);
-const previewCanvas = new PreviewCanvas('sample-preview');
-const tileGenerator = new TileGenerator('generated-tiles', 'tiles-count');
+const previewCanvas = new SamplePreview('sample-preview');
+const tileGenerator = new TileExtractor('generated-tiles', 'tiles-count');
 
 sampleList.onSelect((src: string) => {
   previewCanvas.showImage(src);
@@ -36,9 +36,9 @@ generateBtn.addEventListener('click', () => {
   const tiles: Tile[] = tileElements.map((canvas, id) => ({
     id,
     canvas,
-    data: canvas.getContext('2d')!.getImageData(0, 0, tileSize, tileSize)
+    pixelData: canvas.getContext('2d')!.getImageData(0, 0, tileSize, tileSize)
   }));
 
-  const graph = new TileGraph(tiles);
+  const graph = new TileSet(tiles);
   console.log(graph);
 });

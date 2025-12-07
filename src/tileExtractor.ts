@@ -1,4 +1,4 @@
-export class TileGenerator {
+export class TileExtractor {
     private container: HTMLDivElement;
     private label: HTMLDivElement;
   

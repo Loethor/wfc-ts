@@ -5,7 +5,7 @@ export interface Highlight {
     h: number;
   }
   
-  export class PreviewCanvas {
+  export class SamplePreview {
     private container: HTMLDivElement;
     private canvas: HTMLCanvasElement;
     private ctx: CanvasRenderingContext2D;
