@@ -2,6 +2,7 @@
 # Node / TypeScript / Vite
 # =============================
 node_modules/
+dist/
 .cache/
 
 # TypeScript build info
