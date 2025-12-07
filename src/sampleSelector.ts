@@ -4,8 +4,10 @@ export class SampleSelector {
     private previewContainer: HTMLDivElement;
     private generatedTilesContainer: HTMLDivElement;
     private tilesCountLabel: HTMLDivElement;
-
-
+    private previewCanvas: HTMLCanvasElement;
+    private previewCtx: CanvasRenderingContext2D;
+    private previewHighlight: { x: number; y: number; w: number; h: number } | null = null;
+    private previewImg: HTMLImageElement | null = null;
 
     constructor(containerId: string, samples: string[]) {
         const el = document.getElementById(containerId);
@@ -32,7 +34,77 @@ export class SampleSelector {
         this.tilesCountLabel = tilesCountEl as HTMLDivElement;
 
         this.createPreviews(samples);
+
+
+        // Create a canvas to draw image + highlight
+        this.previewCanvas = document.createElement('canvas');
+        this.previewCanvas.width = previewEl.clientWidth;
+        this.previewCanvas.height = previewEl.clientHeight;
+        this.previewCanvas.style.imageRendering = 'pixelated';
+
+        previewEl.innerHTML = '';
+        previewEl.appendChild(this.previewCanvas);
+
+        const ctx = this.previewCanvas.getContext('2d');
+        if (!ctx) throw new Error('Failed to get canvas context');
+        this.previewCtx = ctx;
     }
+
+    private initPreview() {
+        const previewEl = document.getElementById('sample-preview');
+        if (!previewEl) throw new Error('Missing preview container');
+      
+        this.previewCanvas = document.createElement('canvas');
+        this.previewCanvas.width = 200;  // display width
+        this.previewCanvas.height = 200; // display height
+        this.previewCanvas.style.imageRendering = 'pixelated';
+      
+        previewEl.innerHTML = '';
+        previewEl.appendChild(this.previewCanvas);
+      
+        const ctx = this.previewCanvas.getContext('2d');
+        if (!ctx) throw new Error('Failed to get canvas context');
+        this.previewCtx = ctx;
+      }
+
+
+      private loadPreview(src: string) {
+        if (!this.previewCtx) return;
+      
+        if (!this.previewImg) {
+          this.previewImg = new Image();
+          this.previewImg.onload = () => {
+            this.drawPreview();
+          };
+        }
+        this.previewImg.src = src;
+      }
+
+
+      private drawPreview() {
+        if (!this.previewImg || !this.previewCtx) return;
+        const canvas = this.previewCanvas;
+        const ctx = this.previewCtx;
+      
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        ctx.imageSmoothingEnabled = false;
+        ctx.drawImage(this.previewImg, 0, 0, canvas.width, canvas.height);
+      
+        if (this.previewHighlight) {
+          const scaleX = canvas.width / this.previewImg.naturalWidth;
+          const scaleY = canvas.height / this.previewImg.naturalHeight;
+          ctx.strokeStyle = 'red';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(
+            this.previewHighlight.x * scaleX,
+            this.previewHighlight.y * scaleY,
+            this.previewHighlight.w * scaleX,
+            this.previewHighlight.h * scaleY
+          );
+        }
+      }
+      
+
   
     private createPreviews(samples: string[]) {
         samples.forEach((src) => {
@@ -58,12 +130,18 @@ export class SampleSelector {
             };
         
             img.addEventListener('click', () => {
-            this.selectedSample = img;
-            console.log('Selected sample:', src);
-            this.highlightSelected(img);
-
-            this.updatePreview(src);
-            });
+                this.selectedSample = img;
+                this.highlightSelected(img);
+              
+                // preload only once
+                if (!this.previewImg) {
+                  this.previewImg = new Image();
+                  this.previewImg.onload = () => this.drawPreview();
+                  this.previewImg.src = img.src;
+                } else {
+                  this.drawPreview();
+                }
+              });
         
             this.container.appendChild(img);
         });
@@ -78,58 +156,69 @@ export class SampleSelector {
     }
 
     private updatePreview(src: string) {
-        this.previewContainer.innerHTML = '';
-      
-        const img = document.createElement('img');
+        const img = new Image();
         img.src = src;
-        img.style.imageRendering = 'pixelated';
-      
         img.onload = () => {
-          const containerWidth = this.previewContainer.clientWidth;
-          const containerHeight = this.previewContainer.clientHeight;
+          // Set canvas size to image pixels
+          this.previewCanvas.width = img.naturalWidth;
+          this.previewCanvas.height = img.naturalHeight;
       
-          // Calculate integer scale to fit container
-          const scaleX = Math.floor(containerWidth / img.naturalWidth);
-          const scaleY = Math.floor(containerHeight / img.naturalHeight);
-          const scale = Math.max(1, Math.min(scaleX, scaleY)); // pick smaller to fit
+          // Scale visually with CSS
+          const displayWidth = 200;   // desired preview width
+          const displayHeight = 200;  // desired preview height
+          this.previewCanvas.style.width = `${displayWidth}px`;
+          this.previewCanvas.style.height = `${displayHeight}px`;
+          this.previewCanvas.style.imageRendering = 'pixelated';
       
-          img.width = img.naturalWidth * scale;
-          img.height = img.naturalHeight * scale;
+          // Draw image
+          this.previewCtx.clearRect(0, 0, this.previewCanvas.width, this.previewCanvas.height);
+          this.previewCtx.drawImage(img, 0, 0);
+      
+          // Draw highlight if any
+          if (this.previewHighlight) {
+            const scaleX = displayWidth / img.naturalWidth;
+            const scaleY = displayHeight / img.naturalHeight;
+      
+            this.previewCtx.save();
+            this.previewCtx.scale(scaleX, scaleY); // scale coordinates to canvas pixels
+            this.previewCtx.strokeStyle = 'red';
+            this.previewCtx.lineWidth = 1; // 1 pixel in image space
+            this.previewCtx.strokeRect(
+              this.previewHighlight.x,
+              this.previewHighlight.y,
+              this.previewHighlight.w,
+              this.previewHighlight.h
+            );
+            this.previewCtx.restore();
+          }
         };
-      
-        this.previewContainer.appendChild(img);
-    }
+      }      
 
     private generateOverlappingTiles(tileSize: number) {
         if (!this.selectedSample) return;
       
-        const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-      
         const img = this.selectedSample;
-        canvas.width = img.naturalWidth;
-        canvas.height = img.naturalHeight;
-        ctx.drawImage(img, 0, 0);
+      
+        const width = img.naturalWidth;
+        const height = img.naturalHeight;
+      
+        const mainCanvas = document.createElement('canvas');
+        mainCanvas.width = width;
+        mainCanvas.height = height;
+        const mainCtx = mainCanvas.getContext('2d');
+        if (!mainCtx) return;
+        mainCtx.drawImage(img, 0, 0);
       
         this.generatedTilesContainer.innerHTML = '';
         let tileCount = 0;
       
         const seenTiles = new Set<string>();
+        const tilesPerRow = 8;
+        let rowDiv: HTMLDivElement | null = null;
       
-        for (let y = 0; y <= canvas.height - tileSize; y++) {
-          for (let x = 0; x <= canvas.width - tileSize; x++) {
-            const tileData = ctx.getImageData(x, y, tileSize, tileSize);
-      
-            // Create a simple hash of pixel data
-            let hash = '';
-            for (let i = 0; i < tileData.data.length; i += 4) {
-              hash += `${tileData.data[i]},${tileData.data[i+1]},${tileData.data[i+2]},${tileData.data[i+3]};`;
-            }
-      
-            if (seenTiles.has(hash)) continue; // skip duplicate
-            seenTiles.add(hash);
-      
+        for (let y = 0; y < height; y++) {
+          for (let x = 0; x < width; x++) {
+            // Create NxN tile with wrapping
             const tileCanvas = document.createElement('canvas');
             tileCanvas.width = tileSize * 16;
             tileCanvas.height = tileSize * 16;
@@ -145,29 +234,55 @@ export class SampleSelector {
             const tempCtx = tempCanvas.getContext('2d');
             if (!tempCtx) continue;
       
-            tempCtx.putImageData(tileData, 0, 0);
+            for (let dy = 0; dy < tileSize; dy++) {
+              for (let dx = 0; dx < tileSize; dx++) {
+                const px = (x + dx) % width;
+                const py = (y + dy) % height;
+                const pixel = mainCtx.getImageData(px, py, 1, 1);
+                tempCtx.putImageData(pixel, dx, dy);
+              }
+            }
+      
+            // Deduplication
+            const tileData = tempCtx.getImageData(0, 0, tileSize, tileSize);
+            let hash = '';
+            for (let i = 0; i < tileData.data.length; i += 4) {
+              hash += `${tileData.data[i]},${tileData.data[i + 1]},${tileData.data[i + 2]},${tileData.data[i + 3]};`;
+            }
+            if (seenTiles.has(hash)) continue;
+            seenTiles.add(hash);
       
             tileCtx.imageSmoothingEnabled = false;
-            tileCtx.drawImage(
-              tempCanvas,
-              0,
-              0,
-              tileSize,
-              tileSize,
-              0,
-              0,
-              tileCanvas.width,
-              tileCanvas.height
-            );
+            tileCtx.drawImage(tempCanvas, 0, 0, tileCanvas.width, tileCanvas.height);
       
-            this.generatedTilesContainer.appendChild(tileCanvas);
+            // Manual wrapping in rows
+            if (tileCount % tilesPerRow === 0) {
+              rowDiv = document.createElement('div');
+              rowDiv.style.display = 'flex';
+              rowDiv.style.gap = '4px';
+              this.generatedTilesContainer.appendChild(rowDiv);
+            }
+            rowDiv?.appendChild(tileCanvas);
             tileCount++;
+
+            const tileX = x;
+            const tileY = y;
+            tileCanvas.addEventListener('mouseenter', () => {
+              this.previewHighlight = { x: tileX, y: tileY, w: tileSize, h: tileSize };
+              this.drawPreview();
+            });
+            
+            tileCanvas.addEventListener('mouseleave', () => {
+              this.previewHighlight = null;
+              this.drawPreview();
+            });
+            
           }
         }
       
-        // Update tile count label
         this.tilesCountLabel.textContent = `Tiles: ${tileCount}`;
       }
+      
       
   
     public getSelectedSample(): string | null {
