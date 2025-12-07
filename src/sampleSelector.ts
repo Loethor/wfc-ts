@@ -91,17 +91,45 @@ export class SampleSelector {
         ctx.drawImage(this.previewImg, 0, 0, canvas.width, canvas.height);
       
         if (this.previewHighlight) {
-          const scaleX = canvas.width / this.previewImg.naturalWidth;
-          const scaleY = canvas.height / this.previewImg.naturalHeight;
-          ctx.strokeStyle = 'red';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(
-            this.previewHighlight.x * scaleX,
-            this.previewHighlight.y * scaleY,
-            this.previewHighlight.w * scaleX,
-            this.previewHighlight.h * scaleY
-          );
-        }
+            const canvasWidth = canvas.width;
+            const canvasHeight = canvas.height;
+            const imgWidth = this.previewImg.naturalWidth;
+            const imgHeight = this.previewImg.naturalHeight;
+          
+            const scaleX = canvasWidth / imgWidth;
+            const scaleY = canvasHeight / imgHeight;
+          
+            ctx.strokeStyle = 'blue'; // changed color
+            ctx.lineWidth = 2;
+          
+            const x0 = this.previewHighlight.x % imgWidth;
+            const y0 = this.previewHighlight.y % imgHeight;
+            const w0 = Math.min(this.previewHighlight.w, imgWidth - x0);
+            const h0 = Math.min(this.previewHighlight.h, imgHeight - y0);
+          
+            ctx.strokeRect(
+              x0 * scaleX,
+              y0 * scaleY,
+              w0 * scaleX,
+              h0 * scaleY
+            );
+          
+            // Optional: handle wrapped part separately
+            if (x0 + this.previewHighlight.w > imgWidth) {
+              const wWrap = this.previewHighlight.w - w0;
+              ctx.strokeRect(0, y0 * scaleY, wWrap * scaleX, h0 * scaleY);
+            }
+            if (y0 + this.previewHighlight.h > imgHeight) {
+              const hWrap = this.previewHighlight.h - h0;
+              ctx.strokeRect(x0 * scaleX, 0, w0 * scaleX, hWrap * scaleY);
+            }
+            if (x0 + this.previewHighlight.w > imgWidth && y0 + this.previewHighlight.h > imgHeight) {
+              // bottom-right wrapped corner
+              const wWrap = this.previewHighlight.w - w0;
+              const hWrap = this.previewHighlight.h - h0;
+              ctx.strokeRect(0, 0, wWrap * scaleX, hWrap * scaleY);
+            }
+          }          
       }
       
 
