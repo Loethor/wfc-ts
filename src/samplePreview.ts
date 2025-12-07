@@ -36,48 +36,84 @@ export interface Highlight {
     }
   
     private draw() {
-        if (!this.image || !this.ctx) return;
-      
-        const canvas = this.canvas;
-        const ctx = this.ctx;
-      
-        const displaySize = 200;
-        canvas.width = displaySize;
-        canvas.height = displaySize;
-      
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.imageSmoothingEnabled = false;
-        ctx.drawImage(this.image, 0, 0, canvas.width, canvas.height);
-      
-        if (!this.highlight) return;
-      
-        const { x, y, w, h } = this.highlight;
-      
-        const scaleX = canvas.width / this.image.naturalWidth;
-        const scaleY = canvas.height / this.image.naturalHeight;
-      
-        const x0 = x % this.image.naturalWidth;
-        const y0 = y % this.image.naturalHeight;
-        const w0 = Math.min(w, this.image.naturalWidth - x0);
-        const h0 = Math.min(h, this.image.naturalHeight - y0);
-      
-        ctx.strokeStyle = 'blue';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(x0 * scaleX, y0 * scaleY, w0 * scaleX, h0 * scaleY);
-      
-        if (x0 + w > this.image.naturalWidth) {
-          const wWrap = w - w0;
-          ctx.strokeRect(0, y0 * scaleY, wWrap * scaleX, h0 * scaleY);
-        }
-        if (y0 + h > this.image.naturalHeight) {
-          const hWrap = h - h0;
-          ctx.strokeRect(x0 * scaleX, 0, w0 * scaleX, hWrap * scaleY);
-        }
-        if (x0 + w > this.image.naturalWidth && y0 + h > this.image.naturalHeight) {
-          const wWrap = w - w0;
-          const hWrap = h - h0;
-          ctx.strokeRect(0, 0, wWrap * scaleX, hWrap * scaleY);
-        }
-      }      
+      if (!this.image || !this.ctx) return;
+    
+      const canvas = this.canvas;
+      const ctx = this.ctx;
+    
+      const displaySize = 200;
+      canvas.width = displaySize;
+      canvas.height = displaySize;
+    
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.imageSmoothingEnabled = false;
+    
+      const imgW = this.image.naturalWidth;
+      const imgH = this.image.naturalHeight;
+    
+      const scale = Math.min(
+        canvas.width / imgW,
+        canvas.height / imgH
+      );
+    
+      const drawW = imgW * scale;
+      const drawH = imgH * scale;
+    
+      const offsetX = (canvas.width - drawW) / 2;
+      const offsetY = (canvas.height - drawH) / 2;
+    
+      ctx.drawImage(this.image, offsetX, offsetY, drawW, drawH);
+    
+      if (!this.highlight) return;
+    
+      const { x, y, w, h } = this.highlight;
+    
+      const x0 = x % imgW;
+      const y0 = y % imgH;
+    
+      const w0 = Math.min(w, imgW - x0);
+      const h0 = Math.min(h, imgH - y0);
+    
+      ctx.strokeStyle = 'blue';
+      ctx.lineWidth = 2;
+    
+      ctx.strokeRect(
+        offsetX + x0 * scale,
+        offsetY + y0 * scale,
+        w0 * scale,
+        h0 * scale
+      );
+    
+      if (x0 + w > imgW) {
+        const wWrap = w - w0;
+        ctx.strokeRect(
+          offsetX,
+          offsetY + y0 * scale,
+          wWrap * scale,
+          h0 * scale
+        );
+      }
+    
+      if (y0 + h > imgH) {
+        const hWrap = h - h0;
+        ctx.strokeRect(
+          offsetX + x0 * scale,
+          offsetY,
+          w0 * scale,
+          hWrap * scale
+        );
+      }
+    
+      if (x0 + w > imgW && y0 + h > imgH) {
+        const wWrap = w - w0;
+        const hWrap = h - h0;
+        ctx.strokeRect(
+          offsetX,
+          offsetY,
+          wWrap * scale,
+          hWrap * scale
+        );
+      }
+    }    
   }
   
