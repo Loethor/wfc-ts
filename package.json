@@ -1,0 +1,27 @@
+{
+  "name": "wfc-ts",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Loethor/wfc-ts.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/Loethor/wfc-ts/issues"
+  },
+  "homepage": "https://github.com/Loethor/wfc-ts#readme",
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.2.6"
+  }
+}
