@@ -8,11 +8,25 @@
     <h1>Wave Function Collapse</h1>
   
     <div style="display: flex; gap: 20px;">
-        <div id="sample-selector"></div>
+        <div>
+          <div id="sample-selector"></div>
+          <label>
+            Tile size:
+            <input id="tile-size" type="number" value="3" min="1" max="20" />
+          </label>
+          <button id="generate-tiles">Generate tiles</button>
+        </div>
       
-        <div id="sample-preview"
-             style="width: 200px; height: 200px; border: 2px solid #666;
-                    display: flex; align-items: center; justify-content: center;">
+        <div>
+          <div id="sample-preview" style="width: 200px; height: 200px; border: 2px solid #666;
+                                        display: flex; align-items: center; justify-content: center;">
+          </div>
+      
+          <!-- New container for overlapping tiles -->
+          <div id="generated-tiles-wrapper">
+            <div id="tiles-count" style="margin-bottom: 6px;">Tiles: 0</div>
+            <div id="generated-tiles" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
+          </div>
         </div>
       </div>
   
