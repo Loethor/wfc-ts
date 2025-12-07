@@ -1,42 +1,47 @@
 export class SampleList {
     private container: HTMLDivElement;
-    private selectedImg: HTMLImageElement | null = null;
+    private selected: HTMLImageElement | null = null;
+    private selectCallback: ((src: string) => void) | null = null;
   
-    constructor(containerId: string, private onSelect: (img: HTMLImageElement) => void) {
+    constructor(containerId: string, samples: string[]) {
       const el = document.getElementById(containerId);
       if (!el) throw new Error('Missing container');
       this.container = el as HTMLDivElement;
+      this.createPreviews(samples);
     }
   
-    public addSamples(samples: string[]) {
+    private createPreviews(samples: string[]) {
       samples.forEach((src) => {
         const img = document.createElement('img');
         img.src = src;
-        img.style.cursor = 'pointer';
-        img.style.margin = '5px';
         img.style.imageRendering = 'pixelated';
+        img.style.margin = '5px';
+        img.style.cursor = 'pointer';
   
         img.onload = () => {
-          const maxSize = 64;
-          const scale = Math.floor(maxSize / img.naturalWidth) || 1;
+          const maxPreviewSize = 64;
+          const scale = Math.floor(maxPreviewSize / img.naturalWidth) || 1;
           img.width = img.naturalWidth * scale;
           img.height = img.naturalHeight * scale;
         };
   
-        img.addEventListener('click', () => this.select(img));
+        img.addEventListener('click', () => {
+          this.selected = img;
+          this.container.querySelectorAll('img').forEach((el) => (el as HTMLImageElement).style.border = '');
+          img.style.border = '2px solid red';
+          if (this.selectCallback) this.selectCallback(img.src);
+        });
+  
         this.container.appendChild(img);
       });
     }
   
-    private select(img: HTMLImageElement) {
-      this.container.querySelectorAll('img').forEach((el) => (el as HTMLImageElement).style.border = '');
-      img.style.border = '2px solid red';
-      this.selectedImg = img;
-      this.onSelect(img);
+    onSelect(callback: (src: string) => void) {
+      this.selectCallback = callback;
     }
   
-    public getSelected(): HTMLImageElement | null {
-      return this.selectedImg;
+    getSelected(): string | null {
+      return this.selected?.src || null;
     }
   }
   

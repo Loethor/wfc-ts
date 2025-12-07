@@ -1,40 +1,44 @@
 import { SampleList } from './sampleList';
 import { PreviewCanvas } from './previewCanvas';
 import { TileGenerator } from './tileGenerator';
+import { TileGraph, Tile } from './tileGraph';
 
-// Dynamically import all samples from the folder
 const images = import.meta.glob('/samples/*', {
-    eager: true,
-    query: '?url',
-    import: 'default'
+  eager: true,
+  query: '?url',
+  import: 'default'
 });
 
 const fullPaths = Object.values(images) as string[];
 
-const preview = new PreviewCanvas('sample-preview');
+const sampleList = new SampleList('sample-selector', fullPaths);
+const previewCanvas = new PreviewCanvas('sample-preview');
+const tileGenerator = new TileGenerator('generated-tiles', 'tiles-count');
 
-const tileGen = new TileGenerator('generated-tiles', 'tiles-count');
-
-const sampleList = new SampleList('sample-selector', (img) => {
-    preview.showImage(img);
+sampleList.onSelect((src: string) => {
+  previewCanvas.showImage(src);
 });
 
-// Add samples dynamically
-sampleList.addSamples(fullPaths);
-
-// Setup generate button
 const generateBtn = document.getElementById('generate-tiles') as HTMLButtonElement;
 const tileSizeInput = document.getElementById('tile-size') as HTMLInputElement;
 
 generateBtn.addEventListener('click', () => {
-    const tileSize = parseInt(tileSizeInput.value);
-    const img = sampleList.getSelected();
-    if (!img) return;
+  const selectedSample = sampleList.getSelected();
+  if (!selectedSample) return;
 
-    tileGen.generate(
-        img,
-        tileSize,
-        (x, y, w, h) => preview.setHighlight(x, y, w, h), // hover callback
-        () => preview.clearHighlight()                     // leave callback
-    );
+  const tileSize = parseInt(tileSizeInput.value);
+  const tileElements = tileGenerator.generate(
+    selectedSample,
+    tileSize,
+    previewCanvas.setHighlight.bind(previewCanvas),
+    () => previewCanvas.setHighlight(null)
+  );
+  const tiles: Tile[] = tileElements.map((canvas, id) => ({
+    id,
+    canvas,
+    data: canvas.getContext('2d')!.getImageData(0, 0, tileSize, tileSize)
+  }));
+
+  const graph = new TileGraph(tiles);
+  console.log(graph);
 });
