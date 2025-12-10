@@ -1,7 +1,7 @@
 import { SampleList } from './sampleList';
 import { SamplePreview } from './samplePreview';
 import { TileExtractor } from './tileExtractor';
-import { TileSet, Tile } from './TileSet';
+import { TileSet, Tile } from './tileSet';
 
 export class AppController {
   private sampleList: SampleList;
@@ -30,15 +30,18 @@ export class AppController {
 
   private init() {
     this.sampleList.onSelect((src: string) => this.previewCanvas.showImage(src));
-    this.generateBtn.addEventListener('click', () => this.generateTiles());
+    this.generateBtn.addEventListener('click', () => {
+      void this.generateTiles();
+    });
   }
 
-  private generateTiles() {
+  private async generateTiles() {
     const selectedSample = this.sampleList.getSelected();
     if (!selectedSample) return;
 
     const tileSize = parseInt(this.tileSizeInput.value);
-    const tileElements = this.tileGenerator.generate(
+
+    const tileElements = await this.tileGenerator.generate(
       selectedSample,
       tileSize,
       this.previewCanvas.setHighlight.bind(this.previewCanvas),
