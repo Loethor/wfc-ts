@@ -147,6 +147,10 @@ h1 {
   box-shadow: var(--shadow-sm);
 }
 
+#sample-selector img.selected {
+  border: 2px solid var(--border-selected);
+}
+
 label {
   display: block;
   margin-bottom: var(--spacing-md);
@@ -193,6 +197,17 @@ button:active {
   transform: translateY(0);
 }
 
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+button:disabled:hover {
+  transform: none;
+  box-shadow: none;
+}
+
 #sample-preview {
   background: var(--bg-card);
   border: 2px solid var(--border-secondary);
@@ -220,9 +235,7 @@ button:active {
   background: var(--bg-white);
   padding: var(--spacing-md);
   border-radius: var(--radius-lg);
-  border: 1px solid var(--border-primary)
-  border-radius: 8px;
-  border: 1px solid #e9ecef;
+  border: 1px solid var(--border-primary);
   max-height: 500px;
   overflow-y: auto;
   display: grid;

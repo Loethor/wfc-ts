@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Wave Function Collapse tile generation and visualization tool" />
     <title>Wave Function Collapse</title>
     <link rel="stylesheet" href="/src/styles.css">
   </head>
@@ -13,21 +15,21 @@
         <div class="sidebar">
           <div class="card">
             <h2>Sample Images</h2>
-            <div id="sample-selector"></div>
+            <div id="sample-selector" role="list" aria-label="Sample images to choose from"></div>
           </div>
           
           <div class="card">
             <h2>Settings</h2>
-            <label>
+            <label for="tile-size">
               Tile size:
-              <input id="tile-size" type="number" value="3" min="1" max="20" />
+              <input id="tile-size" type="number" value="3" min="1" max="20" aria-label="Tile size between 1 and 20" />
             </label>
-            <button id="generate-tiles">Generate Tiles</button>
+            <button id="generate-tiles" aria-label="Generate tiles from selected image">Generate Tiles</button>
           </div>
 
           <div class="card">
             <h2>Sample Preview</h2>
-            <div id="sample-preview" style="width: 100%; height: 300px;"></div>
+            <div id="sample-preview" style="width: 100%; height: 300px;" role="img" aria-label="Preview of selected sample image"></div>
           </div>
         </div>
       
@@ -35,13 +37,13 @@
           <div class="tiles-and-adjacency">
             <div class="card">
               <h2>Generated Tiles</h2>
-              <div id="tiles-count">Tiles: 0</div>
-              <div id="generated-tiles"></div>
+              <div id="tiles-count" aria-live="polite">Tiles: 0</div>
+              <div id="generated-tiles" role="list" aria-label="Generated tiles"></div>
             </div>
 
             <div class="card">
               <h2>Adjacencies</h2>
-              <div id="adjacency-viewer">
+              <div id="adjacency-viewer" role="region" aria-live="polite" aria-label="Tile adjacency information">
                 <em style="color: #6c757d;">Hover over a tile to see its adjacencies...</em>
               </div>
             </div>

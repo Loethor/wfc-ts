@@ -16,6 +16,9 @@ export class SampleList {
       samples.forEach((src) => {
         const img = document.createElement('img');
         img.src = src;
+        img.alt = `Sample image ${src.split('/').pop()}`;
+        img.role = 'button';
+        img.tabIndex = 0;
         img.style.imageRendering = 'pixelated';
         img.style.margin = '5px';
         img.style.cursor = 'pointer';
@@ -34,9 +37,11 @@ export class SampleList {
         };
   
         img.addEventListener('click', () => {
+          if (this.selected) {
+            this.selected.classList.remove('selected');
+          }
           this.selected = img;
-          this.container.querySelectorAll('img').forEach((el) => (el as HTMLImageElement).style.border = '');
-          img.style.border = '2px solid red';
+          img.classList.add('selected');
           if (this.selectCallback) this.selectCallback(img.src);
         });
   
