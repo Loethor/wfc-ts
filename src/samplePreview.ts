@@ -20,7 +20,9 @@ export interface Highlight {
       this.container = el as HTMLDivElement;
   
       this.canvas = document.createElement('canvas');
-      this.ctx = this.canvas.getContext('2d')!;
+      const ctx = this.canvas.getContext('2d');
+      if (!ctx) throw new Error('Failed to get 2D rendering context');
+      this.ctx = ctx;
       this.canvas.style.imageRendering = 'pixelated';
       this.container.innerHTML = '';
       this.container.appendChild(this.canvas);

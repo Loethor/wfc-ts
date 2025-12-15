@@ -35,7 +35,12 @@ export class TileExtractor {
         const mainCanvas = document.createElement('canvas');
         mainCanvas.width = width;
         mainCanvas.height = height;
-        const mainCtx = mainCanvas.getContext('2d')!;
+        const mainCtx = mainCanvas.getContext('2d');
+        if (!mainCtx) {
+          console.error('Failed to get 2D context for main canvas');
+          resolve([]);
+          return;
+        }
         mainCtx.drawImage(img, 0, 0);
 
         this.container.innerHTML = '';
@@ -46,7 +51,11 @@ export class TileExtractor {
             const tempCanvas = document.createElement('canvas');
             tempCanvas.width = tileSize;
             tempCanvas.height = tileSize;
-            const tempCtx = tempCanvas.getContext('2d')!;
+            const tempCtx = tempCanvas.getContext('2d');
+            if (!tempCtx) {
+              console.error('Failed to get 2D context for temp canvas');
+              continue;
+            }
 
             for (let dy = 0; dy < tileSize; dy++) {
               for (let dx = 0; dx < tileSize; dx++) {
@@ -74,7 +83,11 @@ export class TileExtractor {
             const tileCanvas = document.createElement('canvas');
             tileCanvas.width = tileSize * CONFIG.ui.tileScaleFactor;
             tileCanvas.height = tileSize * CONFIG.ui.tileScaleFactor;
-            const tileCtx = tileCanvas.getContext('2d')!;
+            const tileCtx = tileCanvas.getContext('2d');
+            if (!tileCtx) {
+              console.error('Failed to get 2D context for tile canvas');
+              continue;
+            }
             tileCtx.imageSmoothingEnabled = false;
             tileCtx.drawImage(tempCanvas, 0, 0, tileCanvas.width, tileCanvas.height);
             tileCanvas.style.imageRendering = 'pixelated';

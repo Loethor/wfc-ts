@@ -59,11 +59,20 @@ export class AppController {
       }
     );
 
-    const tiles: Tile[] = tileElements.map((canvas, id) => ({
-      id,
-      canvas,
-      pixelData: canvas.getContext('2d')!.getImageData(0, 0, tileSize, tileSize)
-    }));
+    const tiles: Tile[] = [];
+    for (let id = 0; id < tileElements.length; id++) {
+      const canvas = tileElements[id];
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        console.error(`Failed to get 2D context for tile ${id}`);
+        continue;
+      }
+      tiles.push({
+        id,
+        canvas,
+        pixelData: ctx.getImageData(0, 0, tileSize, tileSize)
+      });
+    }
 
     const graph = new TileSet(tiles);
     this.currentTileSet = graph;
@@ -120,7 +129,11 @@ export class AppController {
           const preview = document.createElement('canvas');
           preview.width = previewSize;
           preview.height = previewSize;
-          const ctx = preview.getContext('2d')!;
+          const ctx = preview.getContext('2d');
+          if (!ctx) {
+            console.error('Failed to get 2D context for preview canvas');
+            return;
+          }
           ctx.imageSmoothingEnabled = false;
           ctx.drawImage(tile.canvas, 0, 0, previewSize, previewSize);
           
