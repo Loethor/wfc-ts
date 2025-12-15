@@ -34,8 +34,10 @@ export class WFCGenerator {
   private snapshotInterval: number = 10;
   private recentContradictions: number = 0;
   private debug: boolean = false;
-  private collapseDirection: 'left-to-right' | 'right-to-left' | 'top-to-bottom' | 'bottom-to-top' | null = null;
-  private useDirectionalCollapse: boolean = true;
+  private maxBacktrackDepth: number = 32; // Maximum steps to roll back at once
+  // Directional collapse disabled
+  private collapseDirection: null = null;
+  private useDirectionalCollapse: boolean = false;
 
   constructor(tileSet: TileSet, gridWidth: number, gridHeight: number) {
     this.tileSet = tileSet;
@@ -171,14 +173,16 @@ export class WFCGenerator {
       this.snapshots = [];
       this.recentContradictions = 0;
       
-      // Pick random collapse direction for this attempt
-      const directions = ['left-to-right', 'right-to-left', 'top-to-bottom', 'bottom-to-top'] as const;
-      this.collapseDirection = directions[Math.floor(Math.random() * directions.length)];
-      
-      // Strategic initial seeding for medium and large grids (only if not using directional)
-      if (cellCount > 50 && !this.useDirectionalCollapse) {
-        this.seedEdges();
-      }
+      // Start with a single random cell collapsed to a random tile
+      const rx = Math.floor(Math.random() * this.gridWidth);
+      const ry = Math.floor(Math.random() * this.gridHeight);
+      const cell = this.grid[ry][rx];
+      const allTileIds = Array.from(cell.possibleTiles);
+      const randomTile = allTileIds[Math.floor(Math.random() * allTileIds.length)];
+      cell.collapsed = true;
+      cell.tileId = randomTile;
+      cell.possibleTiles = new Set([randomTile]);
+      this.recordCollapse(cell, randomTile);
       
       let iteration = 0;
       let backtracks = 0;
@@ -367,33 +371,48 @@ export class WFCGenerator {
    */
   private collapseCell(cell: Cell): void {
     const possibilities = Array.from(cell.possibleTiles);
-    
-    // Weight primarily by frequency (how often it appeared in sample)
-    // with a small boost from connectivity (compatibility with other tiles)
-    const weights = possibilities.map(id => {
-      const frequency = this.getFrequencyWeight(id);
-      const connectivity = this.tileWeights.get(id) || 1;
-      // Frequency is 3x more important than connectivity
-      return (frequency * 3 + connectivity) / 4;
-    });
-    
-    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-    
-    let random = Math.random() * totalWeight;
-    let chosenTile = possibilities[0];
-    
-    for (let i = 0; i < possibilities.length; i++) {
-      random -= weights[i];
-      if (random <= 0) {
-        chosenTile = possibilities[i];
+    // Uniform weighting: ignore frequency, all tiles equally likely
+    const weights = possibilities.map(() => 1);
+
+    // Try tiles in weighted random order, but skip any that would cause a contradiction in a neighbor (lookahead)
+    const weightedTiles = possibilities
+      .map((id, i) => ({ id, weight: weights[i] }))
+      .sort((a, b) => Math.random() * (b.weight - a.weight));
+
+    let chosenTile: number | null = null;
+    for (const { id } of weightedTiles) {
+      // Simulate assigning this tile
+      // For each neighbor, check if at least one valid tile remains
+      let valid = true;
+      for (const { direction, neighbor } of this.getNeighbors(cell)) {
+        if (neighbor.collapsed) continue;
+        // Simulate neighbor's possible tiles if this cell is assigned 'id'
+        const neighborPossible = new Set(neighbor.possibleTiles);
+        // Only keep tiles compatible with this assignment
+        const rules = this.adjacencyRules.get(id);
+        if (!rules) continue;
+        const allowed = new Set(rules[direction]);
+        const filtered = Array.from(neighborPossible).filter(tid => allowed.has(tid));
+        if (filtered.length === 0) {
+          valid = false;
+          break;
+        }
+      }
+      if (valid) {
+        chosenTile = id;
         break;
       }
     }
-    
+
+    // If no tile passes lookahead, fall back to first possible tile (contradiction will be handled by backtracking)
+    if (chosenTile === null) {
+      chosenTile = possibilities[0];
+    }
+
     cell.collapsed = true;
     cell.tileId = chosenTile;
     cell.possibleTiles = new Set([chosenTile]);
-    
+
     // Record this decision for backtracking
     this.recordCollapse(cell, chosenTile);
   }
@@ -459,15 +478,17 @@ export class WFCGenerator {
    */
   private backtrack(): void {
     if (this.history.length === 0) return;
-    
-    // Adaptive backtracking: remove more steps if we're stuck (recent contradictions)
+
+    // Exponential/adaptive backtracking: increase rollback depth after repeated contradictions
     let stepsToRemove = 1;
-    if (this.recentContradictions > 3) {
-      stepsToRemove = Math.min(3 + Math.floor(Math.random() * 3), this.history.length); // 3-5 steps
+    if (this.recentContradictions > 6) {
+      stepsToRemove = Math.min(this.maxBacktrackDepth, Math.floor(this.history.length / 2));
+    } else if (this.recentContradictions > 3) {
+      stepsToRemove = Math.min(8, this.history.length);
     } else if (this.recentContradictions > 1) {
-      stepsToRemove = Math.min(2 + Math.floor(Math.random() * 2), this.history.length); // 2-3 steps
+      stepsToRemove = Math.min(4, this.history.length);
     } else {
-      stepsToRemove = Math.min(1 + Math.floor(Math.random() * 2), this.history.length); // 1-2 steps
+      stepsToRemove = Math.min(2, this.history.length);
     }
     for (let i = 0; i < stepsToRemove; i++) {
       this.history.pop();
