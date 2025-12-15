@@ -16,9 +16,11 @@ export class AppController {
   private generateWfcBtn: HTMLButtonElement;
   private outputSizeInput: HTMLInputElement;
   private wfcOutputDiv: HTMLElement;
+  private outputSizePreview: HTMLElement;
   private currentTileSet: TileSet | null = null;
   private currentTiles: Tile[] = [];
   private isGenerating = false;
+  private currentTileSize: number = 3;
 
   constructor(
     sampleSelectorId: string,
@@ -42,6 +44,7 @@ export class AppController {
     this.generateWfcBtn = document.getElementById(generateWfcBtnId) as HTMLButtonElement;
     this.outputSizeInput = document.getElementById(outputSizeInputId) as HTMLInputElement;
     this.wfcOutputDiv = document.getElementById(wfcOutputId) as HTMLElement;
+    this.outputSizePreview = document.getElementById('output-size-preview') as HTMLElement;
 
     this.init();
   }
@@ -54,6 +57,21 @@ export class AppController {
     this.generateWfcBtn.addEventListener('click', () => {
       void this.generateWFC();
     });
+    this.outputSizeInput.addEventListener('input', () => {
+      this.updateOutputSizePreview();
+    });
+  }
+
+  private updateOutputSizePreview() {
+    const gridSize = parseInt(this.outputSizeInput.value);
+    if (isNaN(gridSize) || !this.currentTileSet) {
+      this.outputSizePreview.textContent = 'Output: ? × ? pixels';
+      return;
+    }
+    
+    // Formula: outputSize = tileSize + (gridSize - 1) × step, where step = 1 for overlap model
+    const outputSize = this.currentTileSize + (gridSize - 1);
+    this.outputSizePreview.textContent = `Output: ${outputSize} × ${outputSize} pixels`;
   }
 
   private async generateTiles() {
@@ -109,9 +127,13 @@ export class AppController {
       const tileSet = new TileSet(tiles);
       this.currentTileSet = tileSet;
       this.currentTiles = tiles;
+      this.currentTileSize = tileSize;
       
       // Enable WFC button now that we have tiles
       this.generateWfcBtn.disabled = false;
+      
+      // Update output size preview
+      this.updateOutputSizePreview();
     } catch (error) {
       console.error('Error generating tiles:', error);
       alert(`Failed to generate tiles: ${error instanceof Error ? error.message : 'Unknown error'}`);

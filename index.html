@@ -54,9 +54,12 @@
       <div class="card">
         <h2>Wave Function Collapse</h2>
         <label for="output-size">
-          Grid size:
+          Grid size (tiles):
           <input id="output-size" type="number" value="5" min="3" max="50" aria-label="WFC output grid size" />
         </label>
+        <div id="output-size-preview" style="color: #6c757d; font-size: 0.9em; margin-top: -8px; margin-bottom: 8px;">
+          Output: ? × ? pixels
+        </div>
         <button id="generate-wfc" disabled aria-label="Generate output using Wave Function Collapse">Generate WFC</button>
         <div id="wfc-output" role="region" aria-live="polite" aria-label="WFC generated output"></div>
       </div>
