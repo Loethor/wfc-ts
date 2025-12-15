@@ -18,6 +18,9 @@ try {
     CONFIG.elements.generateBtn,
     CONFIG.elements.tileSizeInput,
     CONFIG.elements.adjacencyViewer,
+    CONFIG.elements.generateWfcBtn,
+    CONFIG.elements.outputSizeInput,
+    CONFIG.elements.wfcOutput,
     fullPaths
   );
 } catch (error) {

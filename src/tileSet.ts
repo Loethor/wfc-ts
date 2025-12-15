@@ -113,8 +113,6 @@ export interface Tile {
         const rightSet = new Set<number>();
 
         for (const tileB of this.tiles) {
-          if (tileA.id === tileB.id) continue;
-
           const sigB = this.overlapSignatures.get(tileB.id);
           if (!sigB) continue;
 
@@ -148,6 +146,20 @@ export interface Tile {
       }
 
       return neighbors;
+    }
+
+    /**
+     * Get all tiles
+     */
+    getTiles(): Tile[] {
+      return this.tiles;
+    }
+
+    /**
+     * Get adjacency rules for all tiles
+     */
+    getAdjacencyRules(): Map<number, AdjacencyRules> {
+      return this.neighbors;
     }
   }
   

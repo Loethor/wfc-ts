@@ -51,7 +51,15 @@
         </div>
       </div>
 
-      <canvas id="wfc-canvas" width="640" height="640"></canvas>
+      <div class="card">
+        <h2>Wave Function Collapse</h2>
+        <label for="output-size">
+          Grid size:
+          <input id="output-size" type="number" value="5" min="3" max="50" aria-label="WFC output grid size" />
+        </label>
+        <button id="generate-wfc" disabled aria-label="Generate output using Wave Function Collapse">Generate WFC</button>
+        <div id="wfc-output" role="region" aria-live="polite" aria-label="WFC generated output"></div>
+      </div>
     </div>
   
     <script type="module" src="/src/main.ts"></script>

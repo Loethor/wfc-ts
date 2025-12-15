@@ -11,7 +11,10 @@ export const CONFIG = {
     generateBtn: 'generate-tiles',
     tileSizeInput: 'tile-size',
     adjacencyViewer: 'adjacency-viewer',
-    wfcCanvas: 'wfc-canvas'
+    wfcCanvas: 'wfc-canvas',
+    generateWfcBtn: 'generate-wfc',
+    outputSizeInput: 'output-size',
+    wfcOutput: 'wfc-output'
   },
 
   // UI Constants
@@ -32,7 +35,8 @@ export const CONFIG = {
   // Canvas Settings
   canvas: {
     defaultWidth: 640,
-    defaultHeight: 640
+    defaultHeight: 640,
+    maxSize: 400
   }
 } as const;
 
