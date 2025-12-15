@@ -24,6 +24,7 @@ export class WFCGenerator {
   private overlapSize: number;
   private tileWeights: Map<number, number>;
   private history: HistoryEntry[];
+  private debug: boolean = false; // Set to true to enable logging
 
   constructor(tileSet: TileSet, gridWidth: number, gridHeight: number) {
     this.tileSet = tileSet;
@@ -34,13 +35,6 @@ export class WFCGenerator {
     this.overlapSize = this.tileSize - 1; // Overlap model: tiles share tileSize-1 pixels
     this.tileWeights = this.computeTileWeights();
     this.history = [];
-    
-    console.log('WFC Generator initialized:');
-    console.log(`  Grid: ${gridWidth}x${gridHeight}`);
-    console.log(`  Tile size: ${this.tileSize}x${this.tileSize}`);
-    console.log(`  Overlap: ${this.overlapSize} pixels`);
-    console.log(`  Total tiles: ${tileSet.getTiles().length}`);
-    
     this.initializeGrid();
   }
 
@@ -86,65 +80,47 @@ export class WFCGenerator {
   /**
    * Main WFC generation loop
    */
-  async generate(onProgress?: (attempt: number, maxAttempts: number, iteration: number, maxIterations: number) => void): Promise<ImageData | null> {
-    console.log('Starting WFC generation...');
+  generate(onProgress?: (attempt: number, maxAttempts: number, iteration: number, maxIterations: number) => void): ImageData | null {
     const cellCount = this.gridWidth * this.gridHeight;
-    const maxAttempts = Math.min(20, Math.ceil(5 + cellCount / 10)); // Scale with grid size
-    const maxBacktracks = Math.min(50, cellCount * 2); // Allow backtracking
-    let lastContradictionCell: { x: number; y: number } | null = null;
+    const maxAttempts = Math.min(20, Math.ceil(5 + cellCount / 10));
+    const maxBacktracks = Math.min(50, cellCount * 2);
     let contradictionCount = 0;
     
-    console.log(`Max attempts: ${maxAttempts}, Max backtracks per attempt: ${maxBacktracks}`);
-    
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      console.log(`\nAttempt ${attempt + 1}/${maxAttempts}`);
       this.initializeGrid();
       this.history = [];
       
       let iteration = 0;
       let backtracks = 0;
-      const maxIterations = this.gridWidth * this.gridHeight * 2; // Allow more iterations with backtracking
+      const maxIterations = this.gridWidth * this.gridHeight * 2;
       
       while (iteration < maxIterations && backtracks < maxBacktracks) {
-        // Update progress
-        if (onProgress) {
+        if (onProgress && iteration % 5 === 0) {
           onProgress(attempt + 1, maxAttempts, iteration, this.gridWidth * this.gridHeight);
         }
         
-        // Find cell with minimum entropy
         const cell = this.findMinEntropyCell();
         
         if (!cell) {
-          console.log('✓ Grid fully collapsed!');
           if (onProgress) {
             onProgress(attempt + 1, maxAttempts, this.gridWidth * this.gridHeight, this.gridWidth * this.gridHeight);
           }
           return this.render();
         }
         
-        // Collapse the cell (this will record the decision)
         this.collapseCell(cell);
-        console.log(`Iteration ${iteration}: Collapsed (${cell.x},${cell.y}) to tile ${cell.tileId}`);
+        this.propagateConstraints(cell);
         
-        // Propagate constraints
-        await this.propagateConstraints(cell);
-        
-        // Check for contradictions
         const contradictionCell = this.getContradictionCell();
         if (contradictionCell) {
-          console.log(`✗ Contradiction at (${contradictionCell.x},${contradictionCell.y})`);
-          lastContradictionCell = contradictionCell;
           contradictionCount++;
           
-          // Try to backtrack instead of restarting
           if (this.history.length > 0 && backtracks < maxBacktracks) {
-            console.log(`  Backtracking... (${backtracks + 1}/${maxBacktracks})`);
-            await this.backtrack();
+            this.backtrack();
             backtracks++;
             iteration++;
             continue;
           } else {
-            console.log('  No more backtracks available, restarting...');
             break;
           }
         }
@@ -152,17 +128,11 @@ export class WFCGenerator {
         iteration++;
       }
       
-      // Check if we completed successfully
       if (!this.getContradictionCell() && this.isFullyCollapsed()) {
-        console.log('✓ Generation successful!');
         if (onProgress) {
           onProgress(attempt + 1, maxAttempts, this.gridWidth * this.gridHeight, this.gridWidth * this.gridHeight);
         }
         return this.render();
-      }
-      
-      if (backtracks >= maxBacktracks) {
-        console.log(`Exhausted backtracks (${backtracks}), restarting...`);
       }
     }
     
@@ -258,59 +228,42 @@ export class WFCGenerator {
   }
 
   /**
-   * Backtrack by removing last decision and replaying history from scratch
+   * Backtrack by removing last decision and replaying history
    */
-  private async backtrack(): Promise<void> {
+  private backtrack(): void {
     if (this.history.length === 0) return;
     
-    // Remove the last decision that led to contradiction
-    const failedDecision = this.history.pop();
-    console.log(`  Removed failed decision at (${failedDecision?.x},${failedDecision?.y})`);
-    
-    // Reinitialize grid to clean state
+    this.history.pop();
     this.initializeGrid();
     
-    // Replay all remaining history
     for (const entry of this.history) {
       const cell = this.grid[entry.y][entry.x];
-      
-      // Force collapse to the recorded tile
       cell.collapsed = true;
       cell.tileId = entry.tileId;
       cell.possibleTiles = new Set([entry.tileId]);
+      this.propagateConstraints(cell);
       
-      // Propagate constraints
-      await this.propagateConstraints(cell);
-      
-      // Check if replay causes contradiction (shouldn't happen, but be safe)
       if (this.getContradictionCell()) {
-        console.error('Contradiction during replay - clearing history');
         this.history = [];
         this.initializeGrid();
         return;
       }
     }
-    
-    console.log(`  Grid restored with ${this.history.length} decisions`);
   }
 
   /**
    * Propagate constraints to neighboring cells
-   * Proper WFC algorithm: recompute possibilities based on ALL collapsed neighbors
    */
-  private async propagateConstraints(startCell: Cell): Promise<void> {
+  private propagateConstraints(startCell: Cell): void {
     const stack: Cell[] = [];
     const visited = new Set<string>();
     
-    // Add all neighbors of start cell to stack
     const startNeighbors = this.getNeighbors(startCell);
     for (const { neighbor } of startNeighbors) {
       if (!neighbor.collapsed) {
         stack.push(neighbor);
       }
     }
-
-    let propagationSteps = 0;
 
     while (stack.length > 0) {
       const cell = stack.pop()!;
@@ -320,23 +273,17 @@ export class WFCGenerator {
       visited.add(key);
       
       if (cell.collapsed) continue;
-      
-      propagationSteps++;
 
-      // Recompute valid tiles based on ALL collapsed neighbors
       const beforeSize = cell.possibleTiles.size;
       const validTiles = this.computeValidTilesForCell(cell);
       
       if (validTiles.size < beforeSize) {
         cell.possibleTiles = validTiles;
-        console.log(`  Updated (${cell.x},${cell.y}): ${beforeSize} -> ${cell.possibleTiles.size} possibilities`);
         
         if (cell.possibleTiles.size === 0) {
-          console.error(`  CONTRADICTION at (${cell.x},${cell.y})!`);
-          return;
+          return; // Contradiction found
         }
         
-        // Cell changed, propagate to its neighbors
         const neighbors = this.getNeighbors(cell);
         for (const { neighbor } of neighbors) {
           if (!neighbor.collapsed && !visited.has(`${neighbor.x},${neighbor.y}`)) {
@@ -345,8 +292,6 @@ export class WFCGenerator {
         }
       }
     }
-    
-    console.log(`  Propagation took ${propagationSteps} steps`);
   }
 
   /**
@@ -372,12 +317,9 @@ export class WFCGenerator {
       // Get which tiles the neighbor allows in our direction
       const allowedByNeighbor = new Set(neighborRules[oppositeDir]);
       
-      // Intersect current valid tiles with what this neighbor allows
       validTiles = new Set(
         Array.from(validTiles).filter(t => allowedByNeighbor.has(t))
       );
-      
-      console.log(`    From ${direction} (tile ${neighbor.tileId}): allows ${Array.from(allowedByNeighbor).join(',')} -> now ${validTiles.size} options`);
     }
 
     return validTiles;
@@ -451,11 +393,9 @@ export class WFCGenerator {
    * Render the final grid to an ImageData
    */
   render(): ImageData {
-    const step = this.tileSize - this.overlapSize; // For overlap model: step = 1 pixel
+    const step = this.tileSize - this.overlapSize;
     const actualWidth = this.tileSize + (this.gridWidth - 1) * step;
     const actualHeight = this.tileSize + (this.gridHeight - 1) * step;
-    
-    console.log(`Rendering output: ${actualWidth}x${actualHeight} (step=${step})`);
     
     const canvas = document.createElement('canvas');
     canvas.width = actualWidth;

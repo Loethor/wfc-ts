@@ -169,8 +169,8 @@ export class AppController {
       
       const generator = new WFCGenerator(this.currentTileSet, gridSize, gridSize);
       
-      // Show progress during generation
-      const outputImage = await generator.generate((attempt, maxAttempts, iteration, maxIterations) => {
+      // Generate (progress updates throttled internally)
+      const outputImage = generator.generate((attempt, maxAttempts, iteration, maxIterations) => {
         const progress = Math.round((iteration / maxIterations) * 100);
         this.generateWfcBtn.textContent = `Generating... (Attempt ${attempt}/${maxAttempts}, ${progress}%)`;
       });
