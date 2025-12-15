@@ -14,6 +14,11 @@ interface HistoryEntry {
   tileId: number;
 }
 
+interface GridSnapshot {
+  grid: Cell[][];
+  historyLength: number;
+}
+
 export class WFCGenerator {
   private gridWidth: number;
   private gridHeight: number;
@@ -24,7 +29,10 @@ export class WFCGenerator {
   private overlapSize: number;
   private tileWeights: Map<number, number>;
   private history: HistoryEntry[];
-  private debug: boolean = false; // Set to true to enable logging
+  private snapshots: GridSnapshot[] = [];
+  private snapshotInterval: number = 10;
+  private recentContradictions: number = 0;
+  private debug: boolean = false;
 
   constructor(tileSet: TileSet, gridWidth: number, gridHeight: number) {
     this.tileSet = tileSet;
@@ -57,11 +65,51 @@ export class WFCGenerator {
   }
 
   /**
+   * Seed edges with compatible tiles to constrain search space
+   */
+  private seedEdges(): void {
+    const cellsToSeed: Cell[] = [];
+    
+    // Add corners
+    cellsToSeed.push(
+      this.grid[0][0],
+      this.grid[0][this.gridWidth - 1],
+      this.grid[this.gridHeight - 1][0],
+      this.grid[this.gridHeight - 1][this.gridWidth - 1]
+    );
+    
+    // Add some edge cells for larger grids
+    if (this.gridWidth > 15 || this.gridHeight > 15) {
+      const midX = Math.floor(this.gridWidth / 2);
+      const midY = Math.floor(this.gridHeight / 2);
+      
+      cellsToSeed.push(
+        this.grid[0][midX],
+        this.grid[this.gridHeight - 1][midX],
+        this.grid[midY][0],
+        this.grid[midY][this.gridWidth - 1]
+      );
+    }
+    
+    // Collapse seeded cells
+    for (const cell of cellsToSeed) {
+      if (cell && cell.possibleTiles.size > 1 && !cell.collapsed) {
+        this.collapseCell(cell);
+        this.propagateConstraints(cell);
+        
+        // Check for early contradiction
+        if (this.getContradictionCell()) {
+          return; // Let main loop handle it
+        }
+      }
+    }
+  }
+
+  /**
    * Initialize grid with all tiles possible in each cell
    */
   private initializeGrid(): void {
     const allTileIds = this.tileSet.getTiles().map((t: Tile) => t.id);
-    console.log(`Initializing grid with ${allTileIds.length} possible tiles per cell`);
 
     for (let y = 0; y < this.gridHeight; y++) {
       this.grid[y] = [];
@@ -82,13 +130,20 @@ export class WFCGenerator {
    */
   generate(onProgress?: (attempt: number, maxAttempts: number, iteration: number, maxIterations: number) => void): ImageData | null {
     const cellCount = this.gridWidth * this.gridHeight;
-    const maxAttempts = Math.min(20, Math.ceil(5 + cellCount / 10));
-    const maxBacktracks = Math.min(50, cellCount * 2);
+    const maxAttempts = Math.min(12, Math.ceil(4 + cellCount / 15));
+    const maxBacktracks = Math.min(500, cellCount * 10); // Very aggressive backtracking
     let contradictionCount = 0;
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       this.initializeGrid();
       this.history = [];
+      this.snapshots = [];
+      this.recentContradictions = 0;
+      
+      // Strategic initial seeding for medium and large grids
+      if (cellCount > 50) {
+        this.seedEdges();
+      }
       
       let iteration = 0;
       let backtracks = 0;
@@ -114,6 +169,7 @@ export class WFCGenerator {
         const contradictionCell = this.getContradictionCell();
         if (contradictionCell) {
           contradictionCount++;
+          this.recentContradictions++;
           
           if (this.history.length > 0 && backtracks < maxBacktracks) {
             this.backtrack();
@@ -125,6 +181,8 @@ export class WFCGenerator {
           }
         }
         
+        // Success - reset recent contradiction counter
+        this.recentContradictions = Math.max(0, this.recentContradictions - 1);
         iteration++;
       }
       
@@ -208,7 +266,7 @@ export class WFCGenerator {
   }
 
   /**
-   * Record a collapse decision for replay during backtracking
+   * Record a collapse decision and save snapshot periodically
    */
   private recordCollapse(cell: Cell, tileId: number): void {
     this.history.push({
@@ -216,28 +274,105 @@ export class WFCGenerator {
       y: cell.y,
       tileId: tileId
     });
+    
+    // Save snapshot periodically
+    if (this.history.length % this.snapshotInterval === 0) {
+      this.saveSnapshot();
+    }
   }
 
   /**
-   * Backtrack by removing last decision and replaying history
+   * Save current grid state as snapshot
+   */
+  private saveSnapshot(): void {
+    const snapshot: GridSnapshot = {
+      grid: this.grid.map(row => 
+        row.map(cell => ({
+          x: cell.x,
+          y: cell.y,
+          collapsed: cell.collapsed,
+          tileId: cell.tileId,
+          possibleTiles: new Set(cell.possibleTiles)
+        }))
+      ),
+      historyLength: this.history.length
+    };
+    
+    this.snapshots.push(snapshot);
+    
+    // Limit snapshot memory (keep last 5)
+    if (this.snapshots.length > 5) {
+      this.snapshots.shift();
+    }
+  }
+
+  /**
+   * Restore grid from snapshot
+   */
+  private restoreSnapshot(snapshot: GridSnapshot): void {
+    for (let y = 0; y < this.gridHeight; y++) {
+      for (let x = 0; x < this.gridWidth; x++) {
+        const snapshotCell = snapshot.grid[y][x];
+        const cell = this.grid[y][x];
+        cell.collapsed = snapshotCell.collapsed;
+        cell.tileId = snapshotCell.tileId;
+        cell.possibleTiles = new Set(snapshotCell.possibleTiles);
+      }
+    }
+  }
+
+  /**
+   * Backtrack using snapshots with adaptive multi-step rollback
    */
   private backtrack(): void {
     if (this.history.length === 0) return;
     
-    this.history.pop();
-    this.initializeGrid();
+    // Adaptive backtracking: remove more steps if we're stuck (recent contradictions)
+    let stepsToRemove = 1;
+    if (this.recentContradictions > 3) {
+      stepsToRemove = Math.min(3 + Math.floor(Math.random() * 3), this.history.length); // 3-5 steps
+    } else if (this.recentContradictions > 1) {
+      stepsToRemove = Math.min(2 + Math.floor(Math.random() * 2), this.history.length); // 2-3 steps
+    } else {
+      stepsToRemove = Math.min(1 + Math.floor(Math.random() * 2), this.history.length); // 1-2 steps
+    }
+    for (let i = 0; i < stepsToRemove; i++) {
+      this.history.pop();
+    }
     
-    for (const entry of this.history) {
-      const cell = this.grid[entry.y][entry.x];
-      cell.collapsed = true;
-      cell.tileId = entry.tileId;
-      cell.possibleTiles = new Set([entry.tileId]);
-      this.propagateConstraints(cell);
+    // Find nearest snapshot
+    let snapshotToRestore: GridSnapshot | null = null;
+    for (let i = this.snapshots.length - 1; i >= 0; i--) {
+      if (this.snapshots[i].historyLength <= this.history.length) {
+        snapshotToRestore = this.snapshots[i];
+        // Remove snapshots after this point
+        this.snapshots.splice(i + 1);
+        break;
+      }
+    }
+    
+    // Restore from snapshot or reinitialize
+    if (snapshotToRestore) {
+      this.restoreSnapshot(snapshotToRestore);
       
-      if (this.getContradictionCell()) {
-        this.history = [];
-        this.initializeGrid();
-        return;
+      // Replay decisions after snapshot
+      for (let i = snapshotToRestore.historyLength; i < this.history.length; i++) {
+        const entry = this.history[i];
+        const cell = this.grid[entry.y][entry.x];
+        cell.collapsed = true;
+        cell.tileId = entry.tileId;
+        cell.possibleTiles = new Set([entry.tileId]);
+        this.propagateConstraints(cell);
+      }
+    } else {
+      // No snapshot, full replay
+      this.initializeGrid();
+      for (const entry of this.history) {
+        const cell = this.grid[entry.y][entry.x];
+        cell.collapsed = true;
+        cell.tileId = entry.tileId;
+        cell.possibleTiles = new Set([entry.tileId]);
+        this.propagateConstraints(cell);
       }
     }
   }
