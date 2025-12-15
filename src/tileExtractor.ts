@@ -22,11 +22,15 @@ export class TileExtractor {
       onTileHover?: (tileIndex: number, canvas: HTMLCanvasElement) => void,
       onTileLeave?: () => void
     ): Promise<HTMLCanvasElement[]> {
-    return new Promise((resolve) => {
+    return new Promise((resolve, reject) => {
       const img = new Image();
       img.src = imgSrc;
 
       const tiles: HTMLCanvasElement[] = [];
+
+      img.onerror = () => {
+        reject(new Error(`Failed to load image: ${imgSrc}`));
+      };
 
       img.onload = () => {
         const width = img.naturalWidth;
