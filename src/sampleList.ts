@@ -26,6 +26,12 @@ export class SampleList {
           img.width = img.naturalWidth * scale;
           img.height = img.naturalHeight * scale;
         };
+
+        img.onerror = () => {
+          console.error(`Failed to load sample image: ${src}`);
+          img.style.opacity = '0.3';
+          img.title = 'Failed to load image';
+        };
   
         img.addEventListener('click', () => {
           this.selected = img;

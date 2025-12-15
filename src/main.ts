@@ -17,6 +17,7 @@ try {
     CONFIG.elements.tilesCount,
     CONFIG.elements.generateBtn,
     CONFIG.elements.tileSizeInput,
+    CONFIG.elements.adjacencyViewer,
     fullPaths
   );
 } catch (error) {

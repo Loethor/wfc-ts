@@ -31,6 +31,10 @@ export interface Highlight {
     showImage(src: string) {
       if (!this.image) this.image = new Image();
       this.image.onload = () => this.draw();
+      this.image.onerror = () => {
+        console.error(`Failed to load preview image: ${src}`);
+        alert('Failed to load the selected image. Please try another one.');
+      };
       this.image.src = src;
     }
   

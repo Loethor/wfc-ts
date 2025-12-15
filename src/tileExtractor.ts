@@ -105,14 +105,12 @@ export class TileExtractor {
             
             ((index) => {
               tileCanvas.addEventListener('mouseenter', () => {
-                console.log('Mouse entered tile:', index);
                 onHover({ x: tileX, y: tileY, w: tileSize, h: tileSize });
                 if (onTileHover) {
                   onTileHover(index, tempCanvas);
                 }
               });
               tileCanvas.addEventListener('mouseleave', () => {
-                console.log('Mouse left tile');
                 onLeave();
                 if (onTileLeave) {
                   onTileLeave();
