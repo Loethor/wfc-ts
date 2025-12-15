@@ -67,10 +67,16 @@ export class TileExtractor {
             }
 
             const hashData = tempCtx.getImageData(0, 0, tileSize, tileSize);
-            let hash = '';
+            const hashParts: string[] = [];
             for (let i = 0; i < hashData.data.length; i += 4) {
-              hash += `${hashData.data[i]},${hashData.data[i + 1]},${hashData.data[i + 2]},${hashData.data[i + 3]};`;
+              hashParts.push(
+                hashData.data[i].toString(),
+                hashData.data[i + 1].toString(),
+                hashData.data[i + 2].toString(),
+                hashData.data[i + 3].toString()
+              );
             }
+            const hash = hashParts.join(',');
 
             if (seen.has(hash)) continue;
             seen.add(hash);
