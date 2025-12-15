@@ -136,16 +136,7 @@ export class WFCGenerator {
       }
     }
     
-    // Failed after all attempts - provide detailed error
-    const errorDetails = {
-      attempts: maxAttempts,
-      contradictions: contradictionCount,
-      lastContradiction: lastContradictionCell,
-      gridSize: `${this.gridWidth}x${this.gridHeight}`,
-      tileCount: this.tileSet.getTiles().length
-    };
-    
-    console.error('Failed to generate after max attempts:', errorDetails);
+    // Failed after all attempts
     throw new Error(
       `Could not generate valid output after ${maxAttempts} attempts. ` +
       `Try: (1) Smaller grid size, (2) Different tile size, or (3) Different sample image.`
