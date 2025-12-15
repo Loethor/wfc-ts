@@ -28,11 +28,14 @@ export class WFCGenerator {
   private tileSize: number;
   private overlapSize: number;
   private tileWeights: Map<number, number>;
+  private tileFrequencies: Map<number, number>;
   private history: HistoryEntry[];
   private snapshots: GridSnapshot[] = [];
   private snapshotInterval: number = 10;
   private recentContradictions: number = 0;
   private debug: boolean = false;
+  private collapseDirection: 'left-to-right' | 'right-to-left' | 'top-to-bottom' | 'bottom-to-top' | null = null;
+  private useDirectionalCollapse: boolean = true;
 
   constructor(tileSet: TileSet, gridWidth: number, gridHeight: number) {
     this.tileSet = tileSet;
@@ -42,6 +45,8 @@ export class WFCGenerator {
     this.tileSize = tileSet.getTiles()[0]?.pixelData.width || 3;
     this.overlapSize = this.tileSize - 1; // Overlap model: tiles share tileSize-1 pixels
     this.tileWeights = this.computeTileWeights();
+    // Use actual frequencies from the sample
+    this.tileFrequencies = tileSet.getTileFrequencies();
     this.history = [];
     this.initializeGrid();
   }
@@ -65,12 +70,23 @@ export class WFCGenerator {
   }
 
   /**
-   * Seed edges with compatible tiles to constrain search space
+   * Get normalized frequency weight for a tile
+   * Uses actual occurrence count from the sample image
+   */
+  private getFrequencyWeight(tileId: number): number {
+    const freq = this.tileFrequencies.get(tileId) || 1;
+    // Return the raw frequency - more common tiles are more likely
+    return freq;
+  }
+
+  /**
+   * Smart initial seeding with multiple strategies
    */
   private seedEdges(): void {
     const cellsToSeed: Cell[] = [];
+    const cellCount = this.gridWidth * this.gridHeight;
     
-    // Add corners
+    // Strategy 1: Corners (always)
     cellsToSeed.push(
       this.grid[0][0],
       this.grid[0][this.gridWidth - 1],
@@ -78,20 +94,32 @@ export class WFCGenerator {
       this.grid[this.gridHeight - 1][this.gridWidth - 1]
     );
     
-    // Add some edge cells for larger grids
-    if (this.gridWidth > 15 || this.gridHeight > 15) {
-      const midX = Math.floor(this.gridWidth / 2);
-      const midY = Math.floor(this.gridHeight / 2);
-      
-      cellsToSeed.push(
-        this.grid[0][midX],
-        this.grid[this.gridHeight - 1][midX],
-        this.grid[midY][0],
-        this.grid[midY][this.gridWidth - 1]
-      );
+    // Strategy 2: Scattered random seeding for medium grids
+    if (cellCount >= 100 && cellCount < 400) {
+      const seedCount = Math.floor(Math.sqrt(cellCount) / 2); // ~5 for 10x10
+      for (let i = 0; i < seedCount; i++) {
+        const x = Math.floor(Math.random() * this.gridWidth);
+        const y = Math.floor(Math.random() * this.gridHeight);
+        const cell = this.grid[y][x];
+        if (!cell.collapsed) {
+          cellsToSeed.push(cell);
+        }
+      }
     }
     
-    // Collapse seeded cells
+    // Strategy 3: Checkerboard pattern for larger grids
+    if (cellCount >= 400) {
+      const step = Math.floor(Math.sqrt(cellCount) / 5); // Every ~4 cells for 20x20
+      for (let y = 0; y < this.gridHeight; y += step) {
+        for (let x = 0; x < this.gridWidth; x += step) {
+          if (y < this.gridHeight && x < this.gridWidth) {
+            cellsToSeed.push(this.grid[y][x]);
+          }
+        }
+      }
+    }
+    
+    // Collapse seeded cells with high-frequency tiles
     for (const cell of cellsToSeed) {
       if (cell && cell.possibleTiles.size > 1 && !cell.collapsed) {
         this.collapseCell(cell);
@@ -99,7 +127,7 @@ export class WFCGenerator {
         
         // Check for early contradiction
         if (this.getContradictionCell()) {
-          return; // Let main loop handle it
+          return;
         }
       }
     }
@@ -128,7 +156,10 @@ export class WFCGenerator {
   /**
    * Main WFC generation loop
    */
-  generate(onProgress?: (attempt: number, maxAttempts: number, iteration: number, maxIterations: number) => void): ImageData | null {
+  async generate(
+    onProgress?: (attempt: number, maxAttempts: number, iteration: number, maxIterations: number) => void,
+    onVisualize?: (imageData: ImageData) => void
+  ): Promise<ImageData | null> {
     const cellCount = this.gridWidth * this.gridHeight;
     const maxAttempts = Math.min(12, Math.ceil(4 + cellCount / 15));
     const maxBacktracks = Math.min(500, cellCount * 10); // Very aggressive backtracking
@@ -140,31 +171,50 @@ export class WFCGenerator {
       this.snapshots = [];
       this.recentContradictions = 0;
       
-      // Strategic initial seeding for medium and large grids
-      if (cellCount > 50) {
+      // Pick random collapse direction for this attempt
+      const directions = ['left-to-right', 'right-to-left', 'top-to-bottom', 'bottom-to-top'] as const;
+      this.collapseDirection = directions[Math.floor(Math.random() * directions.length)];
+      
+      // Strategic initial seeding for medium and large grids (only if not using directional)
+      if (cellCount > 50 && !this.useDirectionalCollapse) {
         this.seedEdges();
       }
       
       let iteration = 0;
       let backtracks = 0;
-      const maxIterations = this.gridWidth * this.gridHeight * 2;
+      const totalCells = this.gridWidth * this.gridHeight;
+      const maxIterations = totalCells * 3; // Allow extra iterations for backtracking
       
       while (iteration < maxIterations && backtracks < maxBacktracks) {
+        // Calculate progress based on collapsed cells, not iterations
         if (onProgress && iteration % 5 === 0) {
-          onProgress(attempt + 1, maxAttempts, iteration, this.gridWidth * this.gridHeight);
+          const collapsedCount = this.countCollapsedCells();
+          onProgress(attempt + 1, maxAttempts, collapsedCount, totalCells);
         }
         
-        const cell = this.findMinEntropyCell();
+        const cell = this.useDirectionalCollapse 
+          ? this.findNextDirectionalCell() 
+          : this.findMinEntropyCell();
         
         if (!cell) {
           if (onProgress) {
-            onProgress(attempt + 1, maxAttempts, this.gridWidth * this.gridHeight, this.gridWidth * this.gridHeight);
+            onProgress(attempt + 1, maxAttempts, totalCells, totalCells);
           }
           return this.render();
         }
         
         this.collapseCell(cell);
         this.propagateConstraints(cell);
+        
+        // Visualize current state and allow browser to repaint
+        if (onVisualize && iteration % 2 === 0) {
+          const partialRender = this.renderPartial();
+          if (partialRender) {
+            onVisualize(partialRender);
+            // Small delay to allow browser repaint
+            await new Promise(resolve => setTimeout(resolve, 1));
+          }
+        }
         
         const contradictionCell = this.getContradictionCell();
         if (contradictionCell) {
@@ -188,7 +238,7 @@ export class WFCGenerator {
       
       if (!this.getContradictionCell() && this.isFullyCollapsed()) {
         if (onProgress) {
-          onProgress(attempt + 1, maxAttempts, this.gridWidth * this.gridHeight, this.gridWidth * this.gridHeight);
+          onProgress(attempt + 1, maxAttempts, totalCells, totalCells);
         }
         return this.render();
       }
@@ -202,7 +252,8 @@ export class WFCGenerator {
   }
 
   /**
-   * Find cell with minimum entropy using Shannon entropy + noise for better distribution
+   * Find cell with minimum entropy using weighted Shannon entropy
+   * Considers: tile frequencies, connectivity, and neighbor constraints
    */
   private findMinEntropyCell(): Cell | null {
     let minEntropy = Infinity;
@@ -213,18 +264,31 @@ export class WFCGenerator {
         const cell = this.grid[y][x];
         if (cell.collapsed) continue;
 
-        // Shannon entropy: sum of weight * log(weight)
+        // Weighted Shannon entropy with frequency consideration
         let sumWeights = 0;
         let sumWeightLogWeight = 0;
         
         for (const tileId of cell.possibleTiles) {
-          const weight = this.tileWeights.get(tileId) || 1;
+          // Combine connectivity weight and frequency, favoring frequency
+          const connectivity = this.tileWeights.get(tileId) || 1;
+          const frequency = this.getFrequencyWeight(tileId);
+          // Frequency is 3x more important than connectivity
+          const weight = (frequency * 3 + connectivity) / 4;
+          
           sumWeights += weight;
           sumWeightLogWeight += weight * Math.log(weight);
         }
         
-        // Shannon entropy with small noise to break ties randomly
-        const entropy = Math.log(sumWeights) - (sumWeightLogWeight / sumWeights) + (Math.random() * 0.001);
+        // Shannon entropy
+        let entropy = Math.log(sumWeights) - (sumWeightLogWeight / sumWeights);
+        
+        // Bonus: prefer cells with more collapsed neighbors (MRV with degree heuristic)
+        const neighbors = this.getNeighbors(cell);
+        const collapsedNeighbors = neighbors.filter(n => n.neighbor.collapsed).length;
+        entropy -= collapsedNeighbors * 0.1; // Small bonus for constrained cells
+        
+        // Small random noise for tie-breaking
+        entropy += Math.random() * 0.001;
         
         if (entropy < minEntropy) {
           minEntropy = entropy;
@@ -237,13 +301,82 @@ export class WFCGenerator {
   }
 
   /**
-   * Collapse a cell to a weighted random tile from its possibilities
+   * Find next cell to collapse using directional wave strategy
+   * Collapses from one edge to the opposite edge in a systematic order
+   */
+  private findNextDirectionalCell(): Cell | null {
+    if (!this.collapseDirection) {
+      return this.findMinEntropyCell();
+    }
+
+    switch (this.collapseDirection) {
+      case 'left-to-right':
+        // Collapse column by column, left to right
+        for (let x = 0; x < this.gridWidth; x++) {
+          for (let y = 0; y < this.gridHeight; y++) {
+            const cell = this.grid[y][x];
+            if (!cell.collapsed && cell.possibleTiles.size > 0) {
+              return cell;
+            }
+          }
+        }
+        break;
+
+      case 'right-to-left':
+        // Collapse column by column, right to left
+        for (let x = this.gridWidth - 1; x >= 0; x--) {
+          for (let y = 0; y < this.gridHeight; y++) {
+            const cell = this.grid[y][x];
+            if (!cell.collapsed && cell.possibleTiles.size > 0) {
+              return cell;
+            }
+          }
+        }
+        break;
+
+      case 'top-to-bottom':
+        // Collapse row by row, top to bottom
+        for (let y = 0; y < this.gridHeight; y++) {
+          for (let x = 0; x < this.gridWidth; x++) {
+            const cell = this.grid[y][x];
+            if (!cell.collapsed && cell.possibleTiles.size > 0) {
+              return cell;
+            }
+          }
+        }
+        break;
+
+      case 'bottom-to-top':
+        // Collapse row by row, bottom to top
+        for (let y = this.gridHeight - 1; y >= 0; y--) {
+          for (let x = 0; x < this.gridWidth; x++) {
+            const cell = this.grid[y][x];
+            if (!cell.collapsed && cell.possibleTiles.size > 0) {
+              return cell;
+            }
+          }
+        }
+        break;
+    }
+
+    return null;
+  }
+
+  /**
+   * Collapse a cell to a weighted random tile using frequency and compatibility
    */
   private collapseCell(cell: Cell): void {
     const possibilities = Array.from(cell.possibleTiles);
     
-    // Weighted random selection
-    const weights = possibilities.map(id => this.tileWeights.get(id) || 1);
+    // Weight primarily by frequency (how often it appeared in sample)
+    // with a small boost from connectivity (compatibility with other tiles)
+    const weights = possibilities.map(id => {
+      const frequency = this.getFrequencyWeight(id);
+      const connectivity = this.tileWeights.get(id) || 1;
+      // Frequency is 3x more important than connectivity
+      return (frequency * 3 + connectivity) / 4;
+    });
+    
     const totalWeight = weights.reduce((sum, w) => sum + w, 0);
     
     let random = Math.random() * totalWeight;
@@ -465,6 +598,59 @@ export class WFCGenerator {
   }
 
   /**
+   * Render partial grid state for visualization (showing uncollapsed cells as gray)
+   */
+  private renderPartial(): ImageData | null {
+    const step = this.tileSize - this.overlapSize;
+    const actualWidth = this.tileSize + (this.gridWidth - 1) * step;
+    const actualHeight = this.tileSize + (this.gridHeight - 1) * step;
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = actualWidth;
+    canvas.height = actualHeight;
+    const ctx = canvas.getContext('2d');
+    
+    if (!ctx) return null;
+
+    // Fill with light gray background for uncollapsed cells
+    ctx.fillStyle = '#e0e0e0';
+    ctx.fillRect(0, 0, actualWidth, actualHeight);
+
+    // Render collapsed tiles
+    for (let y = 0; y < this.gridHeight; y++) {
+      for (let x = 0; x < this.gridWidth; x++) {
+        const cell = this.grid[y][x];
+        if (!cell.collapsed || cell.tileId === null) {
+          // Show uncollapsed cells as solid gray
+          ctx.fillStyle = '#808080';
+          const posX = x * step;
+          const posY = y * step;
+          ctx.fillRect(posX, posY, this.tileSize, this.tileSize);
+          continue;
+        }
+
+        const tile = this.tileSet.getTiles().find((t: Tile) => t.id === cell.tileId);
+        if (!tile) continue;
+
+        const tempCanvas = document.createElement('canvas');
+        tempCanvas.width = tile.pixelData.width;
+        tempCanvas.height = tile.pixelData.height;
+        const tempCtx = tempCanvas.getContext('2d');
+        if (!tempCtx) continue;
+
+        tempCtx.putImageData(tile.pixelData, 0, 0);
+        
+        const posX = x * step;
+        const posY = y * step;
+        
+        ctx.drawImage(tempCanvas, posX, posY);
+      }
+    }
+
+    return ctx.getImageData(0, 0, actualWidth, actualHeight);
+  }
+
+  /**
    * Get neighboring cells with their directions
    */
   private getNeighbors(cell: Cell): Array<{ direction: 'up' | 'down' | 'left' | 'right'; neighbor: Cell }> {
@@ -499,6 +685,21 @@ export class WFCGenerator {
       }
     }
     return null;
+  }
+
+  /**
+   * Count how many cells are collapsed
+   */
+  private countCollapsedCells(): number {
+    let count = 0;
+    for (let y = 0; y < this.gridHeight; y++) {
+      for (let x = 0; x < this.gridWidth; x++) {
+        if (this.grid[y][x].collapsed) {
+          count++;
+        }
+      }
+    }
+    return count;
   }
 
   /**

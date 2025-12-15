@@ -24,10 +24,16 @@ export interface Tile {
     tiles: Tile[];
     neighbors: Map<number, AdjacencyRules>;
     private overlapSignatures: Map<number, OverlapSignatures>;
-  
-    constructor(tiles: Tile[]) {
+    private tileFrequencies: Map<number, number>; // How many times each tile appeared in sample
+
+    constructor(tiles: Tile[], frequencies?: Map<number, number>) {
       this.tiles = tiles;
       this.overlapSignatures = new Map();
+      this.tileFrequencies = frequencies || new Map();
+      // If no frequencies provided, assume uniform distribution
+      if (this.tileFrequencies.size === 0) {
+        tiles.forEach(tile => this.tileFrequencies.set(tile.id, 1));
+      }
       this.precomputeOverlapSignatures();
       this.neighbors = this.computeNeighbors();
     }
@@ -161,5 +167,12 @@ export interface Tile {
     getAdjacencyRules(): Map<number, AdjacencyRules> {
       return this.neighbors;
     }
+
+  /**
+   * Get tile frequencies (how many times each tile appeared in the sample)
+   */
+  getTileFrequencies(): Map<number, number> {
+    return this.tileFrequencies;
   }
+}
   

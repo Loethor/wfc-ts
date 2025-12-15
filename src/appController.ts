@@ -92,7 +92,7 @@ export class AppController {
       this.generateBtn.disabled = true;
       this.generateBtn.textContent = 'Generating...';
 
-      const tileElements = await this.tileExtractor.generate(
+      const { tiles: tileElements, frequencies } = await this.tileExtractor.generate(
         selectedSample,
         tileSize,
         this.previewCanvas.setHighlight.bind(this.previewCanvas),
@@ -124,7 +124,8 @@ export class AppController {
         throw new Error('Failed to create tiles');
       }
 
-      const tileSet = new TileSet(tiles);
+      // Pass frequencies to TileSet for frequency-weighted WFC
+      const tileSet = new TileSet(tiles, frequencies);
       this.currentTileSet = tileSet;
       this.currentTiles = tiles;
       this.currentTileSize = tileSize;
@@ -169,11 +170,45 @@ export class AppController {
       
       const generator = new WFCGenerator(this.currentTileSet, gridSize, gridSize);
       
-      // Generate (progress updates throttled internally)
-      const outputImage = generator.generate((attempt, maxAttempts, iteration, maxIterations) => {
-        const progress = Math.round((iteration / maxIterations) * 100);
-        this.generateWfcBtn.textContent = `Generating... (Attempt ${attempt}/${maxAttempts}, ${progress}%)`;
-      });
+      // Prepare canvas for visualization
+      let visualCanvas: HTMLCanvasElement | null = null;
+      let visualCtx: CanvasRenderingContext2D | null = null;
+      
+      // Generate with live visualization
+      const outputImage = await generator.generate(
+        (attempt, maxAttempts, iteration, maxIterations) => {
+          const progress = Math.round((iteration / maxIterations) * 100);
+          this.generateWfcBtn.textContent = `Generating... (Attempt ${attempt}/${maxAttempts}, ${progress}%)`;
+        },
+        (partialImage: ImageData) => {
+          // Create or reuse canvas for visualization
+          if (!visualCanvas) {
+            visualCanvas = document.createElement('canvas');
+            visualCanvas.width = partialImage.width;
+            visualCanvas.height = partialImage.height;
+            visualCtx = visualCanvas.getContext('2d');
+            
+            if (visualCtx) {
+              visualCtx.imageSmoothingEnabled = false;
+              
+              // Scale up for visibility
+              const scale = CONFIG.canvas.maxSize / Math.max(partialImage.width, partialImage.height);
+              visualCanvas.style.width = `${partialImage.width * scale}px`;
+              visualCanvas.style.height = `${partialImage.height * scale}px`;
+              visualCanvas.style.imageRendering = 'pixelated';
+              
+              // Add to output immediately
+              this.wfcOutputDiv.innerHTML = '';
+              this.wfcOutputDiv.appendChild(visualCanvas);
+            }
+          }
+          
+          // Update canvas with current state
+          if (visualCtx) {
+            visualCtx.putImageData(partialImage, 0, 0);
+          }
+        }
+      );
 
       if (!outputImage) {
         throw new Error('WFC generation failed');

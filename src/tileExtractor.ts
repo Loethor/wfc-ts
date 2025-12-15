@@ -21,7 +21,7 @@ export class TileExtractor {
       onLeave: () => void,
       onTileHover?: (tileIndex: number, canvas: HTMLCanvasElement) => void,
       onTileLeave?: () => void
-    ): Promise<HTMLCanvasElement[]> {
+    ): Promise<{ tiles: HTMLCanvasElement[], frequencies: Map<number, number> }> {
     return new Promise((resolve, reject) => {
       const img = new Image();
       img.src = imgSrc;
@@ -42,13 +42,14 @@ export class TileExtractor {
         const mainCtx = mainCanvas.getContext('2d');
         if (!mainCtx) {
           console.error('Failed to get 2D context for main canvas');
-          resolve([]);
+          resolve({ tiles: [], frequencies: new Map() });
           return;
         }
         mainCtx.drawImage(img, 0, 0);
 
         this.container.innerHTML = '';
         const seen = new Set<string>();
+        const frequencyMap = new Map<string, number>(); // Track how many times each tile appears
 
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
@@ -81,6 +82,9 @@ export class TileExtractor {
               );
             }
             const hash = hashParts.join(',');
+
+            // Track frequency of this tile pattern
+            frequencyMap.set(hash, (frequencyMap.get(hash) || 0) + 1);
 
             if (seen.has(hash)) continue;
             seen.add(hash);
@@ -131,7 +135,40 @@ export class TileExtractor {
         }
 
         this.label.textContent = `Tiles: ${tiles.length}`;
-        resolve(tiles);
+        
+        // Convert hash-based frequencies to tile ID-based frequencies
+        const tileIdFrequencies = new Map<number, number>();
+        const hashToId = new Map<string, number>();
+        
+        // Build hash-to-ID mapping
+        for (let i = 0; i < tiles.length; i++) {
+          const canvas = tiles[i];
+          const ctx = canvas.getContext('2d');
+          if (!ctx) continue;
+          
+          const imageData = ctx.getImageData(0, 0, tileSize, tileSize);
+          const hashParts: string[] = [];
+          for (let j = 0; j < imageData.data.length; j += 4) {
+            hashParts.push(
+              imageData.data[j].toString(),
+              imageData.data[j + 1].toString(),
+              imageData.data[j + 2].toString(),
+              imageData.data[j + 3].toString()
+            );
+          }
+          const hash = hashParts.join(',');
+          hashToId.set(hash, i);
+        }
+        
+        // Map frequencies from hash to tile ID
+        for (const [hash, count] of frequencyMap.entries()) {
+          const tileId = hashToId.get(hash);
+          if (tileId !== undefined) {
+            tileIdFrequencies.set(tileId, count);
+          }
+        }
+        
+        resolve({ tiles, frequencies: tileIdFrequencies });
       };
     });
   }
