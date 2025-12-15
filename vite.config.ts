@@ -1,8 +1,19 @@
 import { defineConfig } from 'vite';
 
 export default defineConfig({
-  base: '/wfc-ts/',
+  // Set base to your repo name for GitHub Pages
+  base: process.env.NODE_ENV === 'production' ? '/wfc-ts/' : '/',
   build: {
-    outDir: 'docs'
-  }
+    outDir: 'docs',
+    assetsDir: 'assets',
+    // Generate source maps for debugging
+    sourcemap: false,
+    // Optimize bundle size
+    minify: 'terser',
+    rollupOptions: {
+      output: {
+        manualChunks: undefined,
+      },
+    },
+  },
 });

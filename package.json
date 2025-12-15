@@ -21,6 +21,7 @@
   },
   "homepage": "https://github.com/Loethor/wfc-ts#readme",
   "devDependencies": {
+    "@types/node": "^25.0.2",
     "typescript": "^5.9.3",
     "vite": "^7.2.6"
   }
