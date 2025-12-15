@@ -21,7 +21,7 @@ A interactive tool for exploring the Wave Function Collapse (WFC) algorithm in T
 <img src="samples/Flowers.png" alt="Sample" width="64" height="64">
 
 ### Output
-![Example Output](https://user-images.githubusercontent.com/yourusername/output-example.png)
+<img src="docs/output/flowers_out.png" alt="Example Output" width="256" height="256">
 
 ---
 
