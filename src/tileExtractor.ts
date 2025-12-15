@@ -16,7 +16,9 @@ export class TileExtractor {
       imgSrc: string,
       tileSize: number,
       onHover: (rect: { x: number; y: number; w: number; h: number }) => void,
-      onLeave: () => void
+      onLeave: () => void,
+      onTileHover?: (tileIndex: number, canvas: HTMLCanvasElement) => void,
+      onTileLeave?: () => void
     ): Promise<HTMLCanvasElement[]> {
     return new Promise((resolve) => {
       const img = new Image();
@@ -86,14 +88,29 @@ export class TileExtractor {
             rowDiv.appendChild(tileCanvas);
             
             tiles.push(tempCanvas);
+            const currentTileIndex = tiles.length - 1; // Move AFTER push to get correct index
             countInRow++;
 
             const tileX = x;
             const tileY = y;
-            tileCanvas.addEventListener('mouseenter', () =>
-              onHover({ x: tileX, y: tileY, w: tileSize, h: tileSize })
-            );
-            tileCanvas.addEventListener('mouseleave', () => onLeave());
+            
+            // Create proper closure by using IIFE or direct binding
+            ((index) => {
+              tileCanvas.addEventListener('mouseenter', () => {
+                console.log('Mouse entered tile:', index);
+                onHover({ x: tileX, y: tileY, w: tileSize, h: tileSize });
+                if (onTileHover) {
+                  onTileHover(index, tempCanvas);
+                }
+              });
+              tileCanvas.addEventListener('mouseleave', () => {
+                console.log('Mouse left tile');
+                onLeave();
+                if (onTileLeave) {
+                  onTileLeave();
+                }
+              });
+            })(currentTileIndex);
 
             if (countInRow >= tilesPerRow) {
               rowDiv = document.createElement('div');
