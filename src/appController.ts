@@ -251,13 +251,13 @@ export class AppController {
     if (!this.currentTileSet || !this.currentTiles[tileIndex]) {
       return;
     }
-    
     const adjacencies = this.currentTileSet.neighbors.get(tileIndex);
     if (!adjacencies) {
       return;
     }
-
-    this.adjacencyViewer.show(tileIndex, adjacencies, this.currentTiles);
+    // Get frequency for this tile
+    const freq = this.currentTileSet.getTileFrequencies().get(tileIndex) || 0;
+    this.adjacencyViewer.show(tileIndex, adjacencies, this.currentTiles, freq);
   }
 
   private clearAdjacencies() {

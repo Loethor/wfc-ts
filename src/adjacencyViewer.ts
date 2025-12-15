@@ -18,27 +18,32 @@ export class AdjacencyViewer {
   /**
    * Display adjacency information for a specific tile
    */
-  show(tileIndex: number, adjacencies: AdjacencyRules, tiles: Tile[]): void {
+  show(tileIndex: number, adjacencies: AdjacencyRules, tiles: Tile[], frequency?: number): void {
     if (!tiles[tileIndex]) {
       console.warn(`Tile ${tileIndex} not found`);
       return;
     }
 
-    this.container.innerHTML = '<h3>Adjacencies:</h3>';
+    this.container.innerHTML = `<h3>Adjacencies:</h3>`;
+    // Show frequency info
+    if (typeof frequency === 'number') {
+      const freqDiv = document.createElement('div');
+      freqDiv.style.marginBottom = '8px';
+      freqDiv.innerHTML = `<strong>Frequency:</strong> ${frequency}`;
+      this.container.appendChild(freqDiv);
+    }
 
     const directions: Array<keyof AdjacencyRules> = ['up', 'down', 'left', 'right'];
-    
     for (const dir of directions) {
       const dirDiv = document.createElement('div');
       dirDiv.innerHTML = `<strong>${dir.toUpperCase()}:</strong>`;
-      
+
       const tilesDiv = document.createElement('div');
       tilesDiv.style.display = 'flex';
       tilesDiv.style.gap = '2px';
       tilesDiv.style.flexWrap = 'wrap';
 
       const adjList = adjacencies[dir];
-      
       for (const adjId of adjList) {
         const tile = tiles[adjId];
         if (!tile) continue;
