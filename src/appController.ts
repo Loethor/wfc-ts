@@ -76,6 +76,26 @@ export class AppController {
 
   private async generateTiles() {
     try {
+      // --- DOM and memory cleanup ---
+      // Remove all children from generated-tiles container
+      const tilesContainer = document.getElementById(CONFIG.elements.tilesContainer);
+      if (tilesContainer) {
+        while (tilesContainer.firstChild) {
+          // Remove event listeners by cloning
+          const node = tilesContainer.firstChild;
+          if (node instanceof HTMLElement) {
+            node.replaceWith(node.cloneNode(true));
+          }
+          tilesContainer.removeChild(tilesContainer.firstChild);
+        }
+      }
+      // Clear adjacency viewer
+      this.clearAdjacencies();
+      // Dereference current tiles
+      this.currentTiles = [];
+      this.currentTileSet = null;
+      // --- End cleanup ---
+
       const selectedSample = this.sampleList.getSelected();
       if (!selectedSample) {
         alert('Please select a sample image first');
@@ -83,7 +103,6 @@ export class AppController {
       }
 
       const tileSize = parseInt(this.tileSizeInput.value);
-      
       if (isNaN(tileSize) || tileSize < 1 || tileSize > 20) {
         alert('Please enter a valid tile size between 1 and 20');
         return;
@@ -129,10 +148,10 @@ export class AppController {
       this.currentTileSet = tileSet;
       this.currentTiles = tiles;
       this.currentTileSize = tileSize;
-      
+
       // Enable WFC button now that we have tiles
       this.generateWfcBtn.disabled = false;
-      
+
       // Update output size preview
       this.updateOutputSizePreview();
     } catch (error) {
@@ -154,26 +173,36 @@ export class AppController {
       return;
     }
 
+    // --- DOM and memory cleanup ---
+    // Remove all children from wfcOutputDiv
+    while (this.wfcOutputDiv.firstChild) {
+      const node = this.wfcOutputDiv.firstChild;
+      if (node instanceof HTMLElement) {
+        node.replaceWith(node.cloneNode(true));
+      }
+      this.wfcOutputDiv.removeChild(this.wfcOutputDiv.firstChild);
+    }
+    // --- End cleanup ---
+
     try {
       this.isGenerating = true;
       this.generateWfcBtn.disabled = true;
       this.generateWfcBtn.textContent = 'Generating...';
 
       const gridSize = parseInt(this.outputSizeInput.value);
-      
       if (isNaN(gridSize) || gridSize < 3 || gridSize > 50) {
         alert('Please enter a valid grid size between 3 and 50');
         return;
       }
 
       console.log(`\n=== Starting WFC Generation (${gridSize}x${gridSize}) ===`);
-      
+
       const generator = new WFCGenerator(this.currentTileSet, gridSize, gridSize);
-      
+
       // Prepare canvas for visualization
       let visualCanvas: HTMLCanvasElement | null = null;
       let visualCtx: CanvasRenderingContext2D | null = null;
-      
+
       // Generate with live visualization
       const outputImage = await generator.generate(
         (attempt, maxAttempts, iteration, maxIterations) => {
@@ -187,22 +216,22 @@ export class AppController {
             visualCanvas.width = partialImage.width;
             visualCanvas.height = partialImage.height;
             visualCtx = visualCanvas.getContext('2d');
-            
+
             if (visualCtx) {
               visualCtx.imageSmoothingEnabled = false;
-              
+
               // Scale up for visibility
               const scale = CONFIG.canvas.maxSize / Math.max(partialImage.width, partialImage.height);
               visualCanvas.style.width = `${partialImage.width * scale}px`;
               visualCanvas.style.height = `${partialImage.height * scale}px`;
               visualCanvas.style.imageRendering = 'pixelated';
-              
+
               // Add to output immediately
               this.wfcOutputDiv.innerHTML = '';
               this.wfcOutputDiv.appendChild(visualCanvas);
             }
           }
-          
+
           // Update canvas with current state
           if (visualCtx) {
             visualCtx.putImageData(partialImage, 0, 0);
@@ -220,22 +249,22 @@ export class AppController {
       outputCanvas.width = outputImage.width;
       outputCanvas.height = outputImage.height;
       const ctx = outputCanvas.getContext('2d');
-      
+
       if (!ctx) {
         throw new Error('Failed to get canvas context');
       }
 
       ctx.imageSmoothingEnabled = false;
       ctx.putImageData(outputImage, 0, 0);
-      
+
       // Scale up for visibility
       const scale = CONFIG.canvas.maxSize / Math.max(outputImage.width, outputImage.height);
       outputCanvas.style.width = `${outputImage.width * scale}px`;
       outputCanvas.style.height = `${outputImage.height * scale}px`;
       outputCanvas.style.imageRendering = 'pixelated';
-      
+
       this.wfcOutputDiv.appendChild(outputCanvas);
-      
+
       console.log('=== WFC Generation Complete ===\n');
     } catch (error) {
       console.error('Error in WFC generation:', error);

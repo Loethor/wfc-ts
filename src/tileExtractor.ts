@@ -47,7 +47,14 @@ export class TileExtractor {
         }
         mainCtx.drawImage(img, 0, 0);
 
-        this.container.innerHTML = '';
+        // Remove all children and event listeners from container
+        while (this.container.firstChild) {
+          const node = this.container.firstChild;
+          if (node instanceof HTMLElement) {
+            node.replaceWith(node.cloneNode(true));
+          }
+          this.container.removeChild(this.container.firstChild);
+        }
         const seen = new Set<string>();
         const frequencyMap = new Map<string, number>(); // Track how many times each tile appears
 
