@@ -39,14 +39,6 @@ export class TileExtractor {
         this.container.innerHTML = '';
         const seen = new Set<string>();
 
-        const tilesPerRow = 8;
-        let rowDiv: HTMLDivElement = document.createElement('div');
-        rowDiv.style.display = 'flex';
-        rowDiv.style.gap = '4px';
-        this.container.appendChild(rowDiv);
-
-        let countInRow = 0;
-
         for (let y = 0; y < height; y++) {
           for (let x = 0; x < width; x++) {
             const tempCanvas = document.createElement('canvas');
@@ -72,6 +64,11 @@ export class TileExtractor {
             if (seen.has(hash)) continue;
             seen.add(hash);
 
+            const tileWrapper = document.createElement('div');
+            
+            const index_text = document.createElement('span');
+            index_text.textContent = `${tiles.length}`;
+
             const tileCanvas = document.createElement('canvas');
             tileCanvas.width = tileSize * 16;
             tileCanvas.height = tileSize * 16;
@@ -81,20 +78,16 @@ export class TileExtractor {
             tileCanvas.style.imageRendering = 'pixelated';
             tileCanvas.style.border = '1px solid #ccc';
 
-            const index_text = document.createElement('span');
-            index_text.textContent = `${tiles.length}`;
-            rowDiv.appendChild(index_text);
-
-            rowDiv.appendChild(tileCanvas);
+            tileWrapper.appendChild(index_text);
+            tileWrapper.appendChild(tileCanvas);
+            this.container.appendChild(tileWrapper);
             
             tiles.push(tempCanvas);
-            const currentTileIndex = tiles.length - 1; // Move AFTER push to get correct index
-            countInRow++;
+            const currentTileIndex = tiles.length - 1;
 
             const tileX = x;
             const tileY = y;
             
-            // Create proper closure by using IIFE or direct binding
             ((index) => {
               tileCanvas.addEventListener('mouseenter', () => {
                 console.log('Mouse entered tile:', index);
@@ -111,14 +104,6 @@ export class TileExtractor {
                 }
               });
             })(currentTileIndex);
-
-            if (countInRow >= tilesPerRow) {
-              rowDiv = document.createElement('div');
-              rowDiv.style.display = 'flex';
-              rowDiv.style.gap = '4px';
-              this.container.appendChild(rowDiv);
-              countInRow = 0;
-            }
           }
         }
 

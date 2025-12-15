@@ -3,38 +3,54 @@
   <head>
     <meta charset="utf-8" />
     <title>Wave Function Collapse</title>
+    <link rel="stylesheet" href="/src/styles.css">
   </head>
   <body>
-    <h1>Wave Function Collapse</h1>
+    <div class="container">
+      <h1>🎨 Wave Function Collapse</h1>
   
-    <div style="display: flex; gap: 20px;">
-        <div>
-          <div id="sample-selector"></div>
-          <label>
-            Tile size:
-            <input id="tile-size" type="number" value="3" min="1" max="20" />
-          </label>
-          <button id="generate-tiles">Generate tiles</button>
+      <div class="main-layout">
+        <div class="sidebar">
+          <div class="card">
+            <h2>Sample Images</h2>
+            <div id="sample-selector"></div>
+          </div>
+          
+          <div class="card">
+            <h2>Settings</h2>
+            <label>
+              Tile size:
+              <input id="tile-size" type="number" value="3" min="1" max="20" />
+            </label>
+            <button id="generate-tiles">Generate Tiles</button>
+          </div>
+
+          <div class="card">
+            <h2>Sample Preview</h2>
+            <div id="sample-preview" style="width: 100%; height: 300px;"></div>
+          </div>
         </div>
       
         <div>
-          <div id="sample-preview" style="width: 200px; height: 200px; border: 2px solid #666;
-                                        display: flex; align-items: center; justify-content: center;">
-          </div>
-      
-          <!-- New container for overlapping tiles -->
-          <div id="generated-tiles-wrapper">
-            <div id="tiles-count" style="margin-bottom: 6px;">Tiles: 0</div>
-            <div id="generated-tiles" style="display: flex; flex-wrap: wrap; gap: 4px;"></div>
+          <div class="tiles-and-adjacency">
+            <div class="card">
+              <h2>Generated Tiles</h2>
+              <div id="tiles-count">Tiles: 0</div>
+              <div id="generated-tiles"></div>
+            </div>
+
+            <div class="card">
+              <h2>Adjacencies</h2>
+              <div id="adjacency-viewer">
+                <em style="color: #6c757d;">Hover over a tile to see its adjacencies...</em>
+              </div>
+            </div>
           </div>
         </div>
       </div>
-  
-    <div id="adjacency-viewer" style="margin-top: 20px; padding: 10px; border: 2px solid #666; min-height: 100px;">
-      <!-- Adjacency previews will appear here on tile hover -->
-    </div>
 
-    <canvas id="wfc-canvas" width="320" height="320"></canvas>
+      <canvas id="wfc-canvas" width="640" height="640"></canvas>
+    </div>
   
     <script type="module" src="/src/main.ts"></script>
   </body>
