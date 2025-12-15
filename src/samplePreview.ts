@@ -13,12 +13,13 @@ export interface Highlight {
     private ctx: CanvasRenderingContext2D;
     private image: HTMLImageElement | null = null;
     private highlight: Highlight | null = null;
+    private sizeLabel: HTMLDivElement;
   
     constructor(containerId: string) {
       const el = document.getElementById(containerId);
       if (!el) throw new Error('Missing preview container');
       this.container = el as HTMLDivElement;
-  
+
       this.canvas = document.createElement('canvas');
       const ctx = this.canvas.getContext('2d');
       if (!ctx) throw new Error('Failed to get 2D rendering context');
@@ -26,13 +27,26 @@ export interface Highlight {
       this.canvas.style.imageRendering = 'pixelated';
       this.container.innerHTML = '';
       this.container.appendChild(this.canvas);
+
+      // Add a label for pixel size
+      this.sizeLabel = document.createElement('div');
+      this.sizeLabel.style.fontSize = '0.9em';
+      this.sizeLabel.style.color = '#6c757d';
+      this.sizeLabel.style.marginTop = '6px';
+      this.sizeLabel.style.textAlign = 'center';
+      this.container.appendChild(this.sizeLabel);
     }
   
     showImage(src: string) {
       if (!this.image) this.image = new Image();
-      this.image.onload = () => this.draw();
+      this.image.onload = () => {
+        this.draw();
+        // Show pixel size
+        this.sizeLabel.textContent = `${this.image!.naturalWidth} × ${this.image!.naturalHeight} px`;
+      };
       this.image.onerror = () => {
         console.error(`Failed to load preview image: ${src}`);
+        this.sizeLabel.textContent = '';
         alert('Failed to load the selected image. Please try another one.');
       };
       this.image.src = src;

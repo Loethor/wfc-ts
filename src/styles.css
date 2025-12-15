@@ -135,6 +135,9 @@ h1 {
   flex-wrap: wrap;
   gap: var(--spacing-sm);
   margin-bottom: var(--spacing-md);
+  max-height: 220px;
+  overflow-y: auto;
+  padding-right: 4px; /* for scrollbar */
 }
 
 #sample-selector img {
