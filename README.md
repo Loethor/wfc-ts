@@ -15,7 +15,7 @@ A interactive tool for exploring the Wave Function Collapse (WFC) algorithm in T
 
 ---
 
-## 🖼️ Example Output
+## Example Output
 
 ### Sample
 <img src="samples/Flowers.png" alt="Sample" width="64" height="64">
@@ -25,7 +25,7 @@ A interactive tool for exploring the Wave Function Collapse (WFC) algorithm in T
 
 ---
 
-## 🛠️ Getting Started
+## Getting Started
 
 ### Prerequisites
 - Node.js (v18+ recommended)
