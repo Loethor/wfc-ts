@@ -8,6 +8,12 @@ interface Cell {
   possibleTiles: Set<number>;
 }
 
+interface HistoryEntry {
+  x: number;
+  y: number;
+  tileId: number;
+}
+
 export class WFCGenerator {
   private gridWidth: number;
   private gridHeight: number;
@@ -16,6 +22,8 @@ export class WFCGenerator {
   private grid: Cell[][] = [];
   private tileSize: number;
   private overlapSize: number;
+  private tileWeights: Map<number, number>;
+  private history: HistoryEntry[];
 
   constructor(tileSet: TileSet, gridWidth: number, gridHeight: number) {
     this.tileSet = tileSet;
@@ -24,6 +32,8 @@ export class WFCGenerator {
     this.adjacencyRules = tileSet.getAdjacencyRules();
     this.tileSize = tileSet.getTiles()[0]?.pixelData.width || 3;
     this.overlapSize = this.tileSize - 1; // Overlap model: tiles share tileSize-1 pixels
+    this.tileWeights = this.computeTileWeights();
+    this.history = [];
     
     console.log('WFC Generator initialized:');
     console.log(`  Grid: ${gridWidth}x${gridHeight}`);
@@ -32,6 +42,24 @@ export class WFCGenerator {
     console.log(`  Total tiles: ${tileSet.getTiles().length}`);
     
     this.initializeGrid();
+  }
+
+  /**
+   * Compute tile weights based on connectivity (more connections = higher weight)
+   */
+  private computeTileWeights(): Map<number, number> {
+    const weights = new Map<number, number>();
+    
+    for (const tile of this.tileSet.getTiles()) {
+      const rules = this.adjacencyRules.get(tile.id);
+      if (!rules) continue;
+      
+      // Weight = total number of valid neighbors + 1 (to allow isolated tiles)
+      const connectivity = rules.up.length + rules.down.length + rules.left.length + rules.right.length;
+      weights.set(tile.id, connectivity + 1);
+    }
+    
+    return weights;
   }
 
   /**
@@ -60,21 +88,27 @@ export class WFCGenerator {
    */
   async generate(onProgress?: (attempt: number, maxAttempts: number, iteration: number, maxIterations: number) => void): Promise<ImageData | null> {
     console.log('Starting WFC generation...');
-    const maxAttempts = 10;
+    const cellCount = this.gridWidth * this.gridHeight;
+    const maxAttempts = Math.min(20, Math.ceil(5 + cellCount / 10)); // Scale with grid size
+    const maxBacktracks = Math.min(50, cellCount * 2); // Allow backtracking
     let lastContradictionCell: { x: number; y: number } | null = null;
     let contradictionCount = 0;
+    
+    console.log(`Max attempts: ${maxAttempts}, Max backtracks per attempt: ${maxBacktracks}`);
     
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
       console.log(`\nAttempt ${attempt + 1}/${maxAttempts}`);
       this.initializeGrid();
+      this.history = [];
       
       let iteration = 0;
-      const maxIterations = this.gridWidth * this.gridHeight;
+      let backtracks = 0;
+      const maxIterations = this.gridWidth * this.gridHeight * 2; // Allow more iterations with backtracking
       
-      while (iteration < maxIterations) {
+      while (iteration < maxIterations && backtracks < maxBacktracks) {
         // Update progress
         if (onProgress) {
-          onProgress(attempt + 1, maxAttempts, iteration, maxIterations);
+          onProgress(attempt + 1, maxAttempts, iteration, this.gridWidth * this.gridHeight);
         }
         
         // Find cell with minimum entropy
@@ -83,12 +117,12 @@ export class WFCGenerator {
         if (!cell) {
           console.log('✓ Grid fully collapsed!');
           if (onProgress) {
-            onProgress(attempt + 1, maxAttempts, maxIterations, maxIterations);
+            onProgress(attempt + 1, maxAttempts, this.gridWidth * this.gridHeight, this.gridWidth * this.gridHeight);
           }
           return this.render();
         }
         
-        // Collapse the cell
+        // Collapse the cell (this will record the decision)
         this.collapseCell(cell);
         console.log(`Iteration ${iteration}: Collapsed (${cell.x},${cell.y}) to tile ${cell.tileId}`);
         
@@ -98,10 +132,21 @@ export class WFCGenerator {
         // Check for contradictions
         const contradictionCell = this.getContradictionCell();
         if (contradictionCell) {
-          console.log(`✗ Contradiction at (${contradictionCell.x},${contradictionCell.y}), restarting...`);
+          console.log(`✗ Contradiction at (${contradictionCell.x},${contradictionCell.y})`);
           lastContradictionCell = contradictionCell;
           contradictionCount++;
-          break;
+          
+          // Try to backtrack instead of restarting
+          if (this.history.length > 0 && backtracks < maxBacktracks) {
+            console.log(`  Backtracking... (${backtracks + 1}/${maxBacktracks})`);
+            await this.backtrack();
+            backtracks++;
+            iteration++;
+            continue;
+          } else {
+            console.log('  No more backtracks available, restarting...');
+            break;
+          }
         }
         
         iteration++;
@@ -111,9 +156,13 @@ export class WFCGenerator {
       if (!this.getContradictionCell() && this.isFullyCollapsed()) {
         console.log('✓ Generation successful!');
         if (onProgress) {
-          onProgress(attempt + 1, maxAttempts, maxIterations, maxIterations);
+          onProgress(attempt + 1, maxAttempts, this.gridWidth * this.gridHeight, this.gridWidth * this.gridHeight);
         }
         return this.render();
+      }
+      
+      if (backtracks >= maxBacktracks) {
+        console.log(`Exhausted backtracks (${backtracks}), restarting...`);
       }
     }
     
@@ -134,43 +183,115 @@ export class WFCGenerator {
   }
 
   /**
-   * Find cell with minimum entropy (fewest possibilities)
+   * Find cell with minimum entropy using Shannon entropy + noise for better distribution
    */
   private findMinEntropyCell(): Cell | null {
     let minEntropy = Infinity;
-    let minCells: Cell[] = [];
+    let bestCell: Cell | null = null;
 
     for (let y = 0; y < this.gridHeight; y++) {
       for (let x = 0; x < this.gridWidth; x++) {
         const cell = this.grid[y][x];
         if (cell.collapsed) continue;
 
-        const entropy = cell.possibleTiles.size;
+        // Shannon entropy: sum of weight * log(weight)
+        let sumWeights = 0;
+        let sumWeightLogWeight = 0;
+        
+        for (const tileId of cell.possibleTiles) {
+          const weight = this.tileWeights.get(tileId) || 1;
+          sumWeights += weight;
+          sumWeightLogWeight += weight * Math.log(weight);
+        }
+        
+        // Shannon entropy with small noise to break ties randomly
+        const entropy = Math.log(sumWeights) - (sumWeightLogWeight / sumWeights) + (Math.random() * 0.001);
+        
         if (entropy < minEntropy) {
           minEntropy = entropy;
-          minCells = [cell];
-        } else if (entropy === minEntropy) {
-          minCells.push(cell);
+          bestCell = cell;
         }
       }
     }
 
-    if (minCells.length === 0) return null;
-    
-    // Random tie-breaking
-    return minCells[Math.floor(Math.random() * minCells.length)];
+    return bestCell;
   }
 
   /**
-   * Collapse a cell to a random tile from its possibilities
+   * Collapse a cell to a weighted random tile from its possibilities
    */
   private collapseCell(cell: Cell): void {
     const possibilities = Array.from(cell.possibleTiles);
-    const chosenTile = possibilities[Math.floor(Math.random() * possibilities.length)];
+    
+    // Weighted random selection
+    const weights = possibilities.map(id => this.tileWeights.get(id) || 1);
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+    
+    let random = Math.random() * totalWeight;
+    let chosenTile = possibilities[0];
+    
+    for (let i = 0; i < possibilities.length; i++) {
+      random -= weights[i];
+      if (random <= 0) {
+        chosenTile = possibilities[i];
+        break;
+      }
+    }
     
     cell.collapsed = true;
     cell.tileId = chosenTile;
     cell.possibleTiles = new Set([chosenTile]);
+    
+    // Record this decision for backtracking
+    this.recordCollapse(cell, chosenTile);
+  }
+
+  /**
+   * Record a collapse decision for replay during backtracking
+   */
+  private recordCollapse(cell: Cell, tileId: number): void {
+    this.history.push({
+      x: cell.x,
+      y: cell.y,
+      tileId: tileId
+    });
+  }
+
+  /**
+   * Backtrack by removing last decision and replaying history from scratch
+   */
+  private async backtrack(): Promise<void> {
+    if (this.history.length === 0) return;
+    
+    // Remove the last decision that led to contradiction
+    const failedDecision = this.history.pop();
+    console.log(`  Removed failed decision at (${failedDecision?.x},${failedDecision?.y})`);
+    
+    // Reinitialize grid to clean state
+    this.initializeGrid();
+    
+    // Replay all remaining history
+    for (const entry of this.history) {
+      const cell = this.grid[entry.y][entry.x];
+      
+      // Force collapse to the recorded tile
+      cell.collapsed = true;
+      cell.tileId = entry.tileId;
+      cell.possibleTiles = new Set([entry.tileId]);
+      
+      // Propagate constraints
+      await this.propagateConstraints(cell);
+      
+      // Check if replay causes contradiction (shouldn't happen, but be safe)
+      if (this.getContradictionCell()) {
+        console.error('Contradiction during replay - clearing history');
+        this.history = [];
+        this.initializeGrid();
+        return;
+      }
+    }
+    
+    console.log(`  Grid restored with ${this.history.length} decisions`);
   }
 
   /**
