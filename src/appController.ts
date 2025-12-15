@@ -2,6 +2,7 @@ import { SampleList } from './sampleList';
 import { SamplePreview } from './samplePreview';
 import { TileExtractor } from './tileExtractor';
 import { TileSet, Tile } from './tileSet';
+import { CONFIG } from './config';
 
 export class AppController {
   private sampleList: SampleList;
@@ -90,7 +91,7 @@ export class AppController {
       return;
     }
 
-    const adjContainer = document.getElementById('adjacency-viewer');
+    const adjContainer = document.getElementById(CONFIG.elements.adjacencyViewer);
     console.log('adjacency-viewer element:', adjContainer);
     
     if (!adjContainer) {
@@ -115,7 +116,7 @@ export class AppController {
         const tile = this.currentTiles[adjId];
         if (tile) {
           // Create a scaled-up canvas for preview
-          const previewSize = 48;
+          const previewSize = CONFIG.ui.adjacencyPreviewSize;
           const preview = document.createElement('canvas');
           preview.width = previewSize;
           preview.height = previewSize;
@@ -135,7 +136,7 @@ export class AppController {
   }
 
   private clearAdjacencies() {
-    const adjContainer = document.getElementById('adjacency-viewer');
+    const adjContainer = document.getElementById(CONFIG.elements.adjacencyViewer);
     if (adjContainer) {
       adjContainer.innerHTML = '';
     }

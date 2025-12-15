@@ -1,3 +1,5 @@
+import { CONFIG } from './config';
+
 export class TileExtractor {
     private container: HTMLDivElement;
     private label: HTMLDivElement;
@@ -70,8 +72,8 @@ export class TileExtractor {
             index_text.textContent = `${tiles.length}`;
 
             const tileCanvas = document.createElement('canvas');
-            tileCanvas.width = tileSize * 16;
-            tileCanvas.height = tileSize * 16;
+            tileCanvas.width = tileSize * CONFIG.ui.tileScaleFactor;
+            tileCanvas.height = tileSize * CONFIG.ui.tileScaleFactor;
             const tileCtx = tileCanvas.getContext('2d')!;
             tileCtx.imageSmoothingEnabled = false;
             tileCtx.drawImage(tempCanvas, 0, 0, tileCanvas.width, tileCanvas.height);

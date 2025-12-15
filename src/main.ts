@@ -1,4 +1,5 @@
 import { AppController } from './appController';
+import { CONFIG } from './config';
 
 const images = import.meta.glob('/samples/*', {
   eager: true,
@@ -8,12 +9,17 @@ const images = import.meta.glob('/samples/*', {
 
 const fullPaths = Object.values(images) as string[];
 
-new AppController(
-  'sample-selector',
-  'sample-preview',
-  'generated-tiles',
-  'tiles-count',
-  'generate-tiles',
-  'tile-size',
-  fullPaths
-);
+try {
+  new AppController(
+    CONFIG.elements.sampleSelector,
+    CONFIG.elements.preview,
+    CONFIG.elements.tilesContainer,
+    CONFIG.elements.tilesCount,
+    CONFIG.elements.generateBtn,
+    CONFIG.elements.tileSizeInput,
+    fullPaths
+  );
+} catch (error) {
+  console.error('Failed to initialize application:', error);
+  alert('Failed to initialize the application. Please check the console for details.');
+}

@@ -1,3 +1,5 @@
+import { CONFIG } from './config';
+
 export interface Highlight {
     x: number;
     y: number;
@@ -41,7 +43,7 @@ export interface Highlight {
       const canvas = this.canvas;
       const ctx = this.ctx;
     
-      const displaySize = 200;
+      const displaySize = CONFIG.ui.samplePreviewSize;
       canvas.width = displaySize;
       canvas.height = displaySize;
     

@@ -1,3 +1,5 @@
+import { CONFIG } from './config';
+
 export class SampleList {
     private container: HTMLDivElement;
     private selected: HTMLImageElement | null = null;
@@ -19,7 +21,7 @@ export class SampleList {
         img.style.cursor = 'pointer';
   
         img.onload = () => {
-          const maxPreviewSize = 64;
+          const maxPreviewSize = CONFIG.ui.maxSamplePreviewSize;
           const scale = Math.floor(maxPreviewSize / img.naturalWidth) || 1;
           img.width = img.naturalWidth * scale;
           img.height = img.naturalHeight * scale;
