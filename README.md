@@ -2,8 +2,8 @@
 # WFC-TS: Wave Function Collapse Tile Generator
 
 A interactive tool for exploring the Wave Function Collapse (WFC) algorithm in TypeScript. Extract tiles from sample images, visualize adjacencies, and generate new patterns with advanced controls and live feedback.
-Deployed version [here](https://loethor.github.io/wfc-ts/).
 
+🧩 [Try the live version!](https://loethor.github.io/wfc-ts/).
 ---
 
 ## Features
